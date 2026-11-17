@@ -576,7 +576,7 @@
                   <span class="auto-badge">Tự động</span>
                 </td>
                 <td class="border border-black px-2 py-1.5 text-center text-slate-400">-</td>
-                <td class="border border-black px-2 py-1.5 text-center text-slate-600">Tiêu chuẩn</td>
+                <td class="border border-black px-2 py-1.5 text-right text-slate-700 num-font font-semibold px-2" id="stdTotalBonus">3.650.000</td>
                 <td class="border border-black px-2 py-1.5 text-right text-emerald-700 num-font font-bold" id="totalBonus">3.650.000</td>
               </tr>
               <tr>
@@ -585,18 +585,23 @@
                   <span class="auto-badge" id="badgeAttendanceStatus">Đủ công</span>
                 </td>
                 <td class="border border-black px-2 py-1 text-center text-slate-500" id="attBonusStatus">Đủ công</td>
-                <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="bonusAttendance" value="600000" step="50000" class="table-input text-right font-medium px-2 num-font bg-amber-50/40">
+                  <input type="number" id="bonusAttendance" value="600000" step="50000" class="table-input text-right font-medium px-2 num-font bg-amber-50/40" title="Tiền thưởng chuyên cần tiêu chuẩn">
                 </td>
+                <td class="border border-black px-2 py-1 text-right font-bold text-slate-900 num-font" id="amountBonusAtt">600.000</td>
               </tr>
               <tr>
                 <td class="border border-black px-2 py-1 pl-4">2. Tiền thưởng thành tích KPI</td>
-                <td class="border border-black px-2 py-1 text-center text-slate-500" id="labelKPIBonus">Hệ số: 1</td>
-                <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
-                <td class="border border-black px-1 py-1">
-                  <input type="number" id="bonusKPI" value="3050000" step="50000" class="table-input text-right font-medium px-2 num-font bg-amber-50/40">
+                <td class="border border-black px-2 py-1 text-center text-slate-600">
+                  <div class="inline-flex items-center justify-center gap-1">
+                    <span id="labelKPIBonus">Hệ số:</span>
+                    <input type="number" id="kpiCoeffInline" value="1" step="0.05" min="0" max="3" class="w-14 text-center font-bold border border-slate-300 rounded bg-white text-xs py-0.5 num-font focus:ring-1 focus:ring-blue-500 outline-none" title="Nhấp để sửa hệ số KPI">
+                  </div>
                 </td>
+                <td class="border border-black px-1 py-1">
+                  <input type="number" id="bonusKPI" value="3050000" step="50000" class="table-input text-right font-medium px-2 num-font bg-amber-50/40" title="Tiền thưởng KPI tiêu chuẩn (hệ số 1)">
+                </td>
+                <td class="border border-black px-2 py-1 text-right font-bold text-slate-900 num-font" id="amountBonusKPI">3.050.000</td>
               </tr>
 
               <!-- V. TỔNG THU NHẬP -->
@@ -863,6 +868,6 @@
   <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
   <!-- SCRIPT (Thêm version để chống kẹt cache trình duyệt khi deploy) -->
-  <script src="app.js?v=20261117_v9"></script>
+  <script src="app.js?v=20261117_v11"></script>
 </body>
 </html>

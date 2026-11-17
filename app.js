@@ -30,8 +30,9 @@ function getDefaultSalaryConfig(m) {
     allowanceHouse: 500000,
     allowanceChild: 0,
     allowanceSafety: 0,
-    allowanceNight: (m === 11) ? 780000 : 0,
-    allowanceMealNight: (m === 11) ? 650000 : 0,
+    allowanceNight: 0,
+    allowanceMealNight: 0,
+    isManualNight: false,
     allowancePeriod: 0,
     allowanceOther: 0,
     bonusAttendance: 600000,
@@ -54,6 +55,8 @@ function saveCurrentMonthInputsToConfigStore() {
     return el ? (el.value || fallback) : fallback;
   };
 
+  const isManual = (monthlyConfigStore[currentMonth] && monthlyConfigStore[currentMonth].isManualNight) || false;
+
   monthlyConfigStore[currentMonth] = {
     baseSalary: getNum("baseSalary", 6300000),
     positionAllowance: getNum("positionAllowance", 2450000),
@@ -65,6 +68,7 @@ function saveCurrentMonthInputsToConfigStore() {
     allowanceSafety: getNum("allowanceSafety", 0),
     allowanceNight: getNum("allowanceNight", 0),
     allowanceMealNight: getNum("allowanceMealNight", 0),
+    isManualNight: isManual,
     allowancePeriod: getNum("allowancePeriod", 0),
     allowanceOther: getNum("allowanceOther", 0),
     bonusAttendance: getNum("bonusAttendance", 600000),
@@ -95,12 +99,26 @@ function loadConfigStoreToInputs(m) {
   setVal("allowanceHouse", cfg.allowanceHouse);
   setVal("allowanceChild", cfg.allowanceChild);
   setVal("allowanceSafety", cfg.allowanceSafety);
-  setVal("allowanceNight", cfg.allowanceNight);
-  setVal("allowanceMealNight", cfg.allowanceMealNight);
+
+  // Tự tính theo ca đêm thực tế của tháng nếu không phải người dùng sửa tay
+  let nShifts = 0;
+  const mData = monthlyStore[m] || {};
+  const totalDays = getDaysInMonth(currentYear, m);
+  for (let d = 1; d <= totalDays; d++) {
+    const dayData = mData[d] || {};
+    if (dayData.shift === "night" || parseVal(dayData.ot130) > 0) nShifts++;
+  }
+  const nightVal = (cfg.isManualNight && cfg.allowanceNight !== undefined) ? cfg.allowanceNight : (nShifts * 30000);
+  const mealVal = (cfg.isManualNight && cfg.allowanceMealNight !== undefined) ? cfg.allowanceMealNight : (nShifts * 25000);
+
+  setVal("allowanceNight", nightVal);
+  setVal("allowanceMealNight", mealVal);
   setVal("allowancePeriod", cfg.allowancePeriod);
   setVal("allowanceOther", cfg.allowanceOther);
   setVal("bonusAttendance", cfg.bonusAttendance);
   setVal("bonusKPI", cfg.bonusKPI);
+  setVal("kpiCoeff", cfg.kpiCoeff);
+  setVal("kpiCoeffInline", cfg.kpiCoeff);
   setVal("bankAccount", cfg.bankAccount);
   setVal("bankName", cfg.bankName);
   if (document.getElementById("taxExemptToggle") && cfg.isTaxExempt !== undefined) {
@@ -222,8 +240,9 @@ function initializeDefaultData() {
           allowanceHouse: p.allowance_house !== undefined ? p.allowance_house : (p.allowanceHouse || 500000),
           allowanceChild: p.allowance_child !== undefined ? p.allowance_child : (p.allowanceChild || 0),
           allowanceSafety: p.allowance_safety !== undefined ? p.allowance_safety : (p.allowanceSafety || 0),
-          allowanceNight: p.allowance_night !== undefined ? p.allowance_night : (p.allowanceNight || (m === 11 ? 780000 : 0)),
-          allowanceMealNight: p.allowance_meal_night !== undefined ? p.allowance_meal_night : (p.allowanceMealNight || (m === 11 ? 650000 : 0)),
+          allowanceNight: p.allowance_night !== undefined ? p.allowance_night : (p.allowanceNight !== undefined ? p.allowanceNight : 0),
+          allowanceMealNight: p.allowance_meal_night !== undefined ? p.allowance_meal_night : (p.allowanceMealNight !== undefined ? p.allowanceMealNight : 0),
+          isManualNight: p.is_manual_night !== undefined ? Boolean(p.is_manual_night) : Boolean(p.isManualNight),
           allowancePeriod: p.allowance_period !== undefined ? p.allowance_period : (p.allowancePeriod || 0),
           allowanceOther: p.allowance_other !== undefined ? p.allowance_other : (p.allowanceOther || 0),
           bonusAttendance: p.bonus_attendance !== undefined ? p.bonus_attendance : (p.bonusAttendance || 600000),
@@ -377,7 +396,10 @@ window.setDayShift = function(day, shiftType) {
   if (monthlyStore[currentMonth]) {
     localStorage.setItem(`att_${currentYear}_${currentMonth}`, JSON.stringify(monthlyStore[currentMonth]));
   }
-  saveCurrentMonthInputsToConfigStore();
+  if (!monthlyConfigStore[currentMonth]) {
+    monthlyConfigStore[currentMonth] = getDefaultSalaryConfig(currentMonth);
+  }
+  monthlyConfigStore[currentMonth].isManualNight = false; // Khi đổi ca thì tự động tính lại tiền trợ cấp & ăn đêm
   renderUnifiedTable();
   triggerAutoSave();
 };
@@ -390,6 +412,10 @@ function attachTableInputs() {
       if (monthlyStore[currentMonth] && monthlyStore[currentMonth][day]) {
         monthlyStore[currentMonth][day][field] = e.target.value;
       }
+      if (!monthlyConfigStore[currentMonth]) {
+        monthlyConfigStore[currentMonth] = getDefaultSalaryConfig(currentMonth);
+      }
+      monthlyConfigStore[currentMonth].isManualNight = false; // Khi sửa giờ thì tự động tính lại tiền trợ cấp & ăn đêm
       recalculateMonth();
       renderYearSummary();
       triggerAutoSave();
@@ -492,9 +518,15 @@ function calculateSalaryForMonth(monthNum) {
   const house = (cfg.allowanceHouse !== undefined && cfg.allowanceHouse !== null) ? cfg.allowanceHouse : 500000;
   const child = cfg.allowanceChild || 0;
   const safety = cfg.allowanceSafety || 0;
-  // Đồng nhất 100% cho mọi tháng (không dùng toán tử 3 ngôi phân biệt currentMonth):
-  const nightSubsidy = (cfg.allowanceNight !== undefined && cfg.allowanceNight !== null) ? cfg.allowanceNight : (nightShifts * 30000);
-  const mealNight = (cfg.allowanceMealNight !== undefined && cfg.allowanceMealNight !== null) ? cfg.allowanceMealNight : (nightShifts * 25000);
+  // Tự động tính trợ cấp ca đêm và ăn ca đêm theo số ca đêm thực tế trong bảng:
+  const autoNightSubsidy = nightShifts * 30000;
+  const autoMealNight = nightShifts * 25000;
+  const nightSubsidy = (cfg.isManualNight && cfg.allowanceNight !== undefined && cfg.allowanceNight !== null)
+    ? cfg.allowanceNight
+    : autoNightSubsidy;
+  const mealNight = (cfg.isManualNight && cfg.allowanceMealNight !== undefined && cfg.allowanceMealNight !== null)
+    ? cfg.allowanceMealNight
+    : autoMealNight;
   const period = cfg.allowancePeriod || 0;
   const other = cfg.allowanceOther || 0;
   const totalAllowance = gas + house + child + safety + nightSubsidy + mealNight + period + other;
@@ -511,7 +543,9 @@ function calculateSalaryForMonth(monthNum) {
   }
 
   const baseKPI = (cfg.bonusKPI !== undefined && cfg.bonusKPI !== null) ? cfg.bonusKPI : 3050000;
-  const totalBonus = bonusAtt + Math.round(baseKPI * kpiCoeff);
+  const amountKPI = Math.round(baseKPI * kpiCoeff);
+  const stdTotalBonus = baseBonusAtt + baseKPI;
+  const totalBonus = bonusAtt + amountKPI;
 
   // 7. V. TỔNG THU NHẬP (GROSS) = I + II + III + IV
   const grossIncome = amountDay + totalOTAmount + totalAllowance + totalBonus;
@@ -561,7 +595,7 @@ function calculateSalaryForMonth(monthNum) {
     amount130, amount150, amount200, amount210, amount270, amount300, amount390,
     totalOTHours, totalOTAmount,
     gas, house, child, safety, nightSubsidy, mealNight, period, other, totalAllowance,
-    totalBonus,
+    baseBonusAtt, bonusAtt, baseKPI, amountKPI, stdTotalBonus, totalBonus,
     grossIncome,
     deductBHXH, deductBHYT, deductBHTN, deductKPCĐ, deductTNCN, taxableIncome, isTaxExempt, totalDeductions,
     netSalary
@@ -634,16 +668,48 @@ function recalculateMonth(nightShiftsCount) {
   document.getElementById("hoursOT390").innerText = formatHours(calc.tot390);
   document.getElementById("amountOT390").innerText = formatMoney(calc.amount390);
 
-  // Update Night Shift Subsidy auto hints
+  // Update Night Shift Subsidy auto hints and inputs
   const nShifts = (nightShiftsCount !== undefined) ? nightShiftsCount : calc.nightShifts;
   document.getElementById("labelNightSubsidy").innerText = `30k x ${nShifts} đêm`;
   document.getElementById("labelMealSubsidy").innerText = `25k x ${nShifts} đêm`;
 
+  const inputNight = document.getElementById("allowanceNight");
+  if (inputNight && document.activeElement !== inputNight) {
+    inputNight.value = calc.nightSubsidy;
+  }
+  const inputMeal = document.getElementById("allowanceMealNight");
+  if (inputMeal && document.activeElement !== inputMeal) {
+    inputMeal.value = calc.mealNight;
+  }
+
+  // Cập nhật lại configStore và localStorage để đồng bộ chuẩn xác
+  if (monthlyConfigStore[currentMonth]) {
+    monthlyConfigStore[currentMonth].allowanceNight = calc.nightSubsidy;
+    monthlyConfigStore[currentMonth].allowanceMealNight = calc.mealNight;
+    localStorage.setItem(`cfg_${currentYear}_${currentMonth}`, JSON.stringify(monthlyConfigStore[currentMonth]));
+  }
+
   // Part III & IV
   document.getElementById("totalAllowance").innerText = formatMoney(calc.totalAllowance);
   document.getElementById("totalBonus").innerText = formatMoney(calc.totalBonus);
+  if (document.getElementById("stdTotalBonus")) {
+    document.getElementById("stdTotalBonus").innerText = formatMoney(calc.stdTotalBonus);
+  }
+  if (document.getElementById("amountBonusAtt")) {
+    document.getElementById("amountBonusAtt").innerText = formatMoney(calc.bonusAtt);
+  }
+  if (document.getElementById("amountBonusKPI")) {
+    document.getElementById("amountBonusKPI").innerText = formatMoney(calc.amountKPI);
+  }
   const kpiVal = parseVal(document.getElementById("kpiCoeff").value) || 1;
-  document.getElementById("labelKPIBonus").innerText = `Hệ số: ${kpiVal}`;
+  const kpiInline = document.getElementById("kpiCoeffInline");
+  if (kpiInline && document.activeElement !== kpiInline) {
+    kpiInline.value = kpiVal;
+  }
+  const kpiTop = document.getElementById("kpiCoeff");
+  if (kpiTop && document.activeElement !== kpiTop) {
+    kpiTop.value = kpiVal;
+  }
 
   if (calc.isFullAttendance) {
     document.getElementById("attBonusStatus").innerText = "Đủ công";
@@ -831,6 +897,7 @@ function applyDayShiftToMonth(m) {
   if (!monthlyConfigStore[m]) monthlyConfigStore[m] = getDefaultSalaryConfig(m);
   monthlyConfigStore[m].allowanceNight = 0;
   monthlyConfigStore[m].allowanceMealNight = 0;
+  monthlyConfigStore[m].isManualNight = false;
 
   localStorage.setItem(`att_${currentYear}_${m}`, JSON.stringify(monthlyStore[m]));
   localStorage.setItem(`cfg_${currentYear}_${m}`, JSON.stringify(monthlyConfigStore[m]));
@@ -864,6 +931,7 @@ function applyNightShiftToMonth(m) {
   if (!monthlyConfigStore[m]) monthlyConfigStore[m] = getDefaultSalaryConfig(m);
   monthlyConfigStore[m].allowanceNight = autoNight;
   monthlyConfigStore[m].allowanceMealNight = autoMeal;
+  monthlyConfigStore[m].isManualNight = false;
 
   localStorage.setItem(`att_${currentYear}_${m}`, JSON.stringify(monthlyStore[m]));
   localStorage.setItem(`cfg_${currentYear}_${m}`, JSON.stringify(monthlyConfigStore[m]));
@@ -908,6 +976,7 @@ document.getElementById("btnQuickFillRotating").addEventListener("click", () => 
   if (!monthlyConfigStore[currentMonth]) monthlyConfigStore[currentMonth] = getDefaultSalaryConfig(currentMonth);
   monthlyConfigStore[currentMonth].allowanceNight = autoNight;
   monthlyConfigStore[currentMonth].allowanceMealNight = autoMeal;
+  monthlyConfigStore[currentMonth].isManualNight = false;
 
   localStorage.setItem(`att_${currentYear}_${currentMonth}`, JSON.stringify(monthlyStore[currentMonth]));
   localStorage.setItem(`cfg_${currentYear}_${currentMonth}`, JSON.stringify(monthlyConfigStore[currentMonth]));
@@ -979,6 +1048,14 @@ document.getElementById("inputYear").addEventListener("change", async (e) => {
   const el = document.getElementById(id);
   if (el) {
     el.addEventListener("input", () => {
+      if (id === "allowanceNight" || id === "allowanceMealNight") {
+        if (!monthlyConfigStore[currentMonth]) monthlyConfigStore[currentMonth] = getDefaultSalaryConfig(currentMonth);
+        monthlyConfigStore[currentMonth].isManualNight = true; // Đánh dấu khi người dùng cố ý tự gõ số tiền
+      }
+      if (id === "kpiCoeff") {
+        const inlineEl = document.getElementById("kpiCoeffInline");
+        if (inlineEl) inlineEl.value = el.value;
+      }
       saveCurrentMonthInputsToConfigStore();
       recalculateMonth();
       renderYearSummary();
@@ -986,6 +1063,19 @@ document.getElementById("inputYear").addEventListener("change", async (e) => {
     });
   }
 });
+
+// Listener riêng cho ô Hệ số KPI trực tiếp trong hàng KPI
+const elKpiInline = document.getElementById("kpiCoeffInline");
+if (elKpiInline) {
+  elKpiInline.addEventListener("input", (e) => {
+    const elKpiTop = document.getElementById("kpiCoeff");
+    if (elKpiTop) elKpiTop.value = e.target.value;
+    saveCurrentMonthInputsToConfigStore();
+    recalculateMonth();
+    renderYearSummary();
+    triggerAutoSave();
+  });
+}
 
 // Toggle Miễn Thuế TNCN
 const taxExemptToggle = document.getElementById("taxExemptToggle");
@@ -1081,9 +1171,9 @@ function buildExportWorkbook() {
     ["6. Tiền ăn ca đêm / Tiền 10K ca ngày", "", "", parseVal(document.getElementById("allowanceMealNight") ? document.getElementById("allowanceMealNight").value : 0)],
     ["7. Trợ cấp kinh nguyệt", "", "", parseVal(document.getElementById("allowancePeriod") ? document.getElementById("allowancePeriod").value : 0)],
     ["8. Trợ cấp khác", "", "", parseVal(document.getElementById("allowanceOther") ? document.getElementById("allowanceOther").value : 0)],
-    ["IV. CÁC KHOẢN THƯỞNG", "", "Tiêu chuẩn", document.getElementById("totalBonus") ? document.getElementById("totalBonus").innerText : ""],
-    ["1. Tiền thưởng chuyên cần", document.getElementById("attBonusStatus") ? document.getElementById("attBonusStatus").innerText : "Đủ công", "", parseVal(document.getElementById("bonusAttendance") ? document.getElementById("bonusAttendance").value : 600000)],
-    ["2. Tiền thưởng thành tích KPI", `Hệ số: ${kpi}`, "", parseVal(document.getElementById("bonusKPI") ? document.getElementById("bonusKPI").value : 3050000)],
+    ["IV. CÁC KHOẢN THƯỞNG", "", document.getElementById("stdTotalBonus") ? document.getElementById("stdTotalBonus").innerText : "3.650.000", document.getElementById("totalBonus") ? document.getElementById("totalBonus").innerText : ""],
+    ["1. Tiền thưởng chuyên cần", document.getElementById("attBonusStatus") ? document.getElementById("attBonusStatus").innerText : "Đủ công", parseVal(document.getElementById("bonusAttendance") ? document.getElementById("bonusAttendance").value : 600000), document.getElementById("amountBonusAtt") ? document.getElementById("amountBonusAtt").innerText : ""],
+    ["2. Tiền thưởng thành tích KPI", `Hệ số: ${kpi}`, parseVal(document.getElementById("bonusKPI") ? document.getElementById("bonusKPI").value : 3050000), document.getElementById("amountBonusKPI") ? document.getElementById("amountBonusKPI").innerText : ""],
     ["V. TỔNG THU NHẬP (I+II+III+IV)", "", "", document.getElementById("totalGrossIncome") ? document.getElementById("totalGrossIncome").innerText : ""],
     ["VI. CÁC KHOẢN GIẢM TRỪ", "Tỷ lệ", "Lương đóng BH", document.getElementById("headerDeductions") ? document.getElementById("headerDeductions").innerText : ""],
     ["1. Bảo hiểm xã hội (BHXH - 8%)", "8%", insSal, document.getElementById("deductBHXH") ? document.getElementById("deductBHXH").innerText : ""],
@@ -1277,6 +1367,7 @@ function normalizeConfig(cfg) {
     allowanceSafety: cfg.allowance_safety !== undefined ? cfg.allowance_safety : (cfg.allowanceSafety !== undefined ? cfg.allowanceSafety : 0),
     allowanceNight: cfg.allowance_night !== undefined ? cfg.allowance_night : (cfg.allowanceNight !== undefined ? cfg.allowanceNight : 0),
     allowanceMealNight: cfg.allowance_meal_night !== undefined ? cfg.allowance_meal_night : (cfg.allowanceMealNight !== undefined ? cfg.allowanceMealNight : 0),
+    isManualNight: cfg.is_manual_night !== undefined ? Boolean(cfg.is_manual_night) : Boolean(cfg.isManualNight),
     allowancePeriod: cfg.allowance_period !== undefined ? cfg.allowance_period : (cfg.allowancePeriod !== undefined ? cfg.allowancePeriod : 0),
     allowanceOther: cfg.allowance_other !== undefined ? cfg.allowance_other : (cfg.allowanceOther !== undefined ? cfg.allowanceOther : 0),
     bonusAttendance: cfg.bonus_attendance !== undefined ? cfg.bonus_attendance : (cfg.bonusAttendance !== undefined ? cfg.bonusAttendance : 600000),
