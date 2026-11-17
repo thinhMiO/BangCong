@@ -14,6 +14,95 @@ let currentView = "unified"; // 'unified' or 'summary'
 
 // All 12 months data store
 let monthlyStore = {};
+window.monthlyStore = monthlyStore;
+
+// All 12 months independent salary configuration store (Hồ sơ lương riêng biệt từng tháng)
+let monthlyConfigStore = {};
+window.monthlyConfigStore = monthlyConfigStore;
+
+function getDefaultSalaryConfig(m) {
+  return {
+    baseSalary: 6300000,
+    positionAllowance: 2450000,
+    seniorityAllowance: 100000,
+    kpiCoeff: 1.0,
+    allowanceGas: 500000,
+    allowanceHouse: 500000,
+    allowanceChild: 0,
+    allowanceSafety: 0,
+    allowanceNight: (m === 11) ? 780000 : 0,
+    allowanceMealNight: (m === 11) ? 650000 : 0,
+    allowancePeriod: 0,
+    allowanceOther: 0,
+    bonusAttendance: 600000,
+    bonusKPI: 3050000,
+    isTaxExempt: 1,
+    bankAccount: "STK: 102884878810",
+    bankName: "VietinBank"
+  };
+}
+
+function saveCurrentMonthInputsToConfigStore() {
+  const getNum = (id, fallback) => {
+    const el = document.getElementById(id);
+    return el ? (parseVal(el.value) || fallback) : fallback;
+  };
+  const getStr = (id, fallback) => {
+    const el = document.getElementById(id);
+    return el ? (el.value || fallback) : fallback;
+  };
+
+  monthlyConfigStore[currentMonth] = {
+    baseSalary: getNum("baseSalary", 6300000),
+    positionAllowance: getNum("positionAllowance", 2450000),
+    seniorityAllowance: getNum("seniorityAllowance", 100000),
+    kpiCoeff: getNum("kpiCoeff", 1.0),
+    allowanceGas: getNum("allowanceGas", 500000),
+    allowanceHouse: getNum("allowanceHouse", 500000),
+    allowanceChild: getNum("allowanceChild", 0),
+    allowanceSafety: getNum("allowanceSafety", 0),
+    allowanceNight: getNum("allowanceNight", 0),
+    allowanceMealNight: getNum("allowanceMealNight", 0),
+    allowancePeriod: getNum("allowancePeriod", 0),
+    allowanceOther: getNum("allowanceOther", 0),
+    bonusAttendance: getNum("bonusAttendance", 600000),
+    bonusKPI: getNum("bonusKPI", 3050000),
+    isTaxExempt: (document.getElementById("taxExemptToggle") && document.getElementById("taxExemptToggle").checked) ? 1 : 0,
+    bankAccount: getStr("bankAccount", "STK: 102884878810"),
+    bankName: getStr("bankName", "VietinBank")
+  };
+}
+
+function loadConfigStoreToInputs(m) {
+  if (!monthlyConfigStore[m]) {
+    monthlyConfigStore[m] = getDefaultSalaryConfig(m);
+  }
+  const cfg = monthlyConfigStore[m];
+  const setVal = (id, val) => {
+    const el = document.getElementById(id);
+    if (el && val !== undefined && val !== null) el.value = val;
+  };
+
+  setVal("baseSalary", cfg.baseSalary);
+  setVal("positionAllowance", cfg.positionAllowance);
+  setVal("seniorityAllowance", cfg.seniorityAllowance);
+  setVal("kpiCoeff", cfg.kpiCoeff);
+  setVal("allowanceGas", cfg.allowanceGas);
+  setVal("allowanceHouse", cfg.allowanceHouse);
+  setVal("allowanceChild", cfg.allowanceChild);
+  setVal("allowanceSafety", cfg.allowanceSafety);
+  setVal("allowanceNight", cfg.allowanceNight);
+  setVal("allowanceMealNight", cfg.allowanceMealNight);
+  setVal("allowancePeriod", cfg.allowancePeriod);
+  setVal("allowanceOther", cfg.allowanceOther);
+  setVal("bonusAttendance", cfg.bonusAttendance);
+  setVal("bonusKPI", cfg.bonusKPI);
+  setVal("bankAccount", cfg.bankAccount);
+  setVal("bankName", cfg.bankName);
+  if (document.getElementById("taxExemptToggle") && cfg.isTaxExempt !== undefined) {
+    document.getElementById("taxExemptToggle").checked = (cfg.isTaxExempt == 1);
+  }
+}
 
 // Helper: Format Money
 function formatMoney(num) {
@@ -108,8 +197,40 @@ function applyShiftToDay(month, day, shiftType) {
 // Initialize Default Sample Data
 function initializeDefaultData() {
   monthlyStore = {};
+  monthlyConfigStore = {};
+  window.monthlyStore = monthlyStore;
+  window.monthlyConfigStore = monthlyConfigStore;
 
   for (let m = 1; m <= 12; m++) {
+    monthlyConfigStore[m] = getDefaultSalaryConfig(m);
+    
+    // Check if saved in localStorage
+    const savedCfg = localStorage.getItem(`cfg_${currentYear}_${m}`);
+    if (savedCfg) {
+      try {
+        const p = JSON.parse(savedCfg);
+        monthlyConfigStore[m] = {
+          baseSalary: p.base_salary !== undefined ? p.base_salary : (p.baseSalary || 6300000),
+          positionAllowance: p.pos_allowance !== undefined ? p.pos_allowance : (p.positionAllowance || 2450000),
+          seniorityAllowance: p.sen_allowance !== undefined ? p.sen_allowance : (p.seniorityAllowance || 100000),
+          kpiCoeff: p.kpi_coeff !== undefined ? p.kpi_coeff : (p.kpiCoeff || 1.0),
+          allowanceGas: p.allowance_gas !== undefined ? p.allowance_gas : (p.allowanceGas || 500000),
+          allowanceHouse: p.allowance_house !== undefined ? p.allowance_house : (p.allowanceHouse || 500000),
+          allowanceChild: p.allowance_child !== undefined ? p.allowance_child : (p.allowanceChild || 0),
+          allowanceSafety: p.allowance_safety !== undefined ? p.allowance_safety : (p.allowanceSafety || 0),
+          allowanceNight: p.allowance_night !== undefined ? p.allowance_night : (p.allowanceNight || (m === 11 ? 780000 : 0)),
+          allowanceMealNight: p.allowance_meal_night !== undefined ? p.allowance_meal_night : (p.allowanceMealNight || (m === 11 ? 650000 : 0)),
+          allowancePeriod: p.allowance_period !== undefined ? p.allowance_period : (p.allowancePeriod || 0),
+          allowanceOther: p.allowance_other !== undefined ? p.allowance_other : (p.allowanceOther || 0),
+          bonusAttendance: p.bonus_attendance !== undefined ? p.bonus_attendance : (p.bonusAttendance || 600000),
+          bonusKPI: p.bonus_kpi !== undefined ? p.bonus_kpi : (p.bonusKPI || 3050000),
+          isTaxExempt: p.is_tax_exempt !== undefined ? p.is_tax_exempt : (p.isTaxExempt !== undefined ? p.isTaxExempt : 1),
+          bankAccount: p.bank_account || p.bankAccount || "STK: 102884878810",
+          bankName: p.bank_name || p.bankName || "VietinBank"
+        };
+      } catch(e) {}
+    }
+
     const totalDays = getDaysInMonth(currentYear, m);
     monthlyStore[m] = {};
 
@@ -257,12 +378,16 @@ function calculateSalaryForMonth(monthNum) {
 
   let totStd = 0, totActual = 0, tot130 = 0, tot150 = 0, tot200 = 0, tot210 = 0, tot270 = 0, tot300 = 0, tot390 = 0;
   let nightShifts = 0;
+  let workedDays = 0;
 
   for (let day = 1; day <= totalDays; day++) {
     const d = mData[day] || {};
+    const act = parseVal(d.actual);
+    const ot130 = parseVal(d.ot130);
+
     totStd += parseVal(d.std);
-    totActual += parseVal(d.actual);
-    tot130 += parseVal(d.ot130);
+    totActual += act;
+    tot130 += ot130;
     tot150 += parseVal(d.ot150);
     tot200 += parseVal(d.ot200);
     tot210 += parseVal(d.ot210);
@@ -270,14 +395,31 @@ function calculateSalaryForMonth(monthNum) {
     tot300 += parseVal(d.ot300);
     tot390 += parseVal(d.ot390);
 
-    if (d.shift === "night" || parseVal(d.ot130) > 0) nightShifts++;
+    if (d.shift === "night" || ot130 > 0) nightShifts++;
+
+    // ĐIỀU KIỆN ĐI LÀM: Ngày có giờ thực tế HOẶC có giờ ca đêm 130%
+    if (act > 0 || ot130 > 0) {
+      workedDays++;
+    }
   }
 
-  // 1. Lương cơ bản & các phụ cấp lương
-  const baseSalary = parseVal(document.getElementById("baseSalary").value) || 6300000;
-  const posAllowance = parseVal(document.getElementById("positionAllowance").value) || 2450000;
-  const senAllowance = parseVal(document.getElementById("seniorityAllowance").value) || 100000;
-  const kpiCoeff = parseVal(document.getElementById("kpiCoeff").value) || 1;
+  // Tổng giờ công chuẩn thực tế (bao gồm cả giờ làm thực tế và giờ ca đêm 130%)
+  const totalBaseWorkedHours = totActual + tot130;
+
+  // Cấu hình lương riêng biệt của tháng monthNum
+  let cfg;
+  if (monthNum === currentMonth) {
+    saveCurrentMonthInputsToConfigStore();
+    cfg = monthlyConfigStore[currentMonth] || getDefaultSalaryConfig(currentMonth);
+  } else {
+    cfg = monthlyConfigStore[monthNum] || getDefaultSalaryConfig(monthNum);
+  }
+
+  // 1. Lương cơ bản & các phụ cấp lương của riêng tháng này
+  const baseSalary = cfg.baseSalary;
+  const posAllowance = cfg.positionAllowance;
+  const senAllowance = cfg.seniorityAllowance;
+  const kpiCoeff = cfg.kpiCoeff;
 
   // 2. Công chuẩn, Giờ tiêu chuẩn và Đơn giá 1 giờ
   const stdDays = getStandardWorkDays(currentYear, monthNum);
@@ -315,26 +457,29 @@ function calculateSalaryForMonth(monthNum) {
   const totalOTHours = tot130 + tot150 + tot200 + tot210 + tot270 + tot300 + tot390;
   const totalOTAmount = amount130 + amount150 + amount200 + amount210 + amount270 + amount300 + amount390;
 
-  // 5. III. CÁC KHOẢN TRỢ CẤP (Đầy đủ theo ảnh mới)
-  const gas = parseVal(document.getElementById("allowanceGas").value) || 500000;
-  const house = parseVal(document.getElementById("allowanceHouse").value) || 500000;
-  const child = parseVal(document.getElementById("allowanceChild").value) || 0;
-  const safety = parseVal(document.getElementById("allowanceSafety").value) || 0;
-  
-  let nightSubsidy = parseVal(document.getElementById("allowanceNight").value);
-  let mealNight = parseVal(document.getElementById("allowanceMealNight").value);
-  if (monthNum !== currentMonth) {
-    nightSubsidy = nightShifts * 30000; // 30k/đêm
-    mealNight = nightShifts * 25000;    // 25k/đêm
-  }
-
-  const period = parseVal(document.getElementById("allowancePeriod").value) || 0;
-  const other = parseVal(document.getElementById("allowanceOther").value) || 0;
+  // 5. III. CÁC KHOẢN TRỢ CẤP (Theo hồ sơ lương của riêng tháng này)
+  const gas = cfg.allowanceGas;
+  const house = cfg.allowanceHouse;
+  const child = cfg.allowanceChild;
+  const safety = cfg.allowanceSafety;
+  const nightSubsidy = (monthNum === currentMonth) ? cfg.allowanceNight : (cfg.allowanceNight || (nightShifts * 30000));
+  const mealNight = (monthNum === currentMonth) ? cfg.allowanceMealNight : (cfg.allowanceMealNight || (nightShifts * 25000));
+  const period = cfg.allowancePeriod;
+  const other = cfg.allowanceOther;
   const totalAllowance = gas + house + child + safety + nightSubsidy + mealNight + period + other;
 
   // 6. IV. CÁC KHOẢN THƯỞNG
-  const bonusAtt = (totActual >= stdHours || totActual >= 180) ? (parseVal(document.getElementById("bonusAttendance").value) || 600000) : 0;
-  const baseKPI = parseVal(document.getElementById("bonusKPI").value) || 3050000;
+  // Người dùng xác nhận: Khi trong cột giờ thực tế hoặc cột ca đêm 130% có số liệu thì vẫn đi làm và vẫn tính đủ công và đủ tiền chuyên cần!
+  const isFullAttendance = (workedDays >= stdDays) || (totalBaseWorkedHours >= stdHours);
+  const baseBonusAtt = cfg.bonusAttendance;
+  let bonusAtt = 0;
+  if (isFullAttendance) {
+    bonusAtt = baseBonusAtt;
+  } else if (workedDays > 0) {
+    bonusAtt = (workedDays >= stdDays - 2) ? Math.round(baseBonusAtt * (workedDays / stdDays)) : 0;
+  }
+
+  const baseKPI = cfg.bonusKPI;
   const totalBonus = bonusAtt + Math.round(baseKPI * kpiCoeff);
 
   // 7. V. TỔNG THU NHẬP (GROSS) = I + II + III + IV
@@ -347,9 +492,7 @@ function calculateSalaryForMonth(monthNum) {
   const deductKPCĐ = Math.round(insSalary * 0.005);
 
   // Thuế thu nhập cá nhân (TNCN)
-  // Người dùng xác nhận: "Tôi không bị tính thuế" -> Mặc định = 0đ (Miễn thuế)
-  const taxToggleEl = document.getElementById("taxExemptToggle");
-  const isTaxExempt = taxToggleEl ? taxToggleEl.checked : true;
+  const isTaxExempt = (cfg.isTaxExempt == 1);
   let deductTNCN = 0;
   let taxableIncome = 0;
 
@@ -378,7 +521,9 @@ function calculateSalaryForMonth(monthNum) {
   const netSalary = grossIncome - totalDeductions;
 
   return {
+    baseSalary, posAllowance, senAllowance, kpiCoeff,
     stdDays, stdHours, exactHourlyRate, hourlyRate, insSalary, nightShifts,
+    workedDays, totalBaseWorkedHours, isFullAttendance, bonusAtt,
     totStd, totActual, tot130, tot150, tot200, tot210, tot270, tot300, tot390,
     amountDay,
     rate130, rate150, rate200, rate210, rate270, rate300, rate390,
@@ -469,13 +614,13 @@ function recalculateMonth(nightShiftsCount) {
   const kpiVal = parseVal(document.getElementById("kpiCoeff").value) || 1;
   document.getElementById("labelKPIBonus").innerText = `Hệ số: ${kpiVal}`;
 
-  if (calc.totActual >= calc.stdHours) {
+  if (calc.isFullAttendance) {
     document.getElementById("attBonusStatus").innerText = "Đủ công";
     document.getElementById("badgeAttendanceStatus").innerText = "Đủ công";
     document.getElementById("badgeAttendanceStatus").className = "auto-badge bg-emerald-100 text-emerald-800";
   } else {
-    document.getElementById("attBonusStatus").innerText = `Thiếu (${formatHours(calc.totActual)}/${calc.stdHours}h)`;
-    document.getElementById("badgeAttendanceStatus").innerText = "Thiếu công";
+    document.getElementById("attBonusStatus").innerText = `Thiếu (${calc.workedDays}/${calc.stdDays} ngày)`;
+    document.getElementById("badgeAttendanceStatus").innerText = `Thiếu (${calc.workedDays}/${calc.stdDays})`;
     document.getElementById("badgeAttendanceStatus").className = "auto-badge bg-amber-100 text-amber-800";
   }
 
@@ -554,6 +699,7 @@ function renderYearSummary() {
 
     tr.innerHTML = `
       <td class="border-r border-black py-2 px-2 font-bold text-slate-900">Tháng ${m} ${m === currentMonth ? "<span class='text-[10px] bg-blue-600 text-white px-1.5 py-0.2 rounded ml-1'>Hiện tại</span>" : ""}</td>
+      <td class="border-r border-black py-2 px-2 num-font text-right font-semibold text-slate-800 bg-slate-50/50">${formatMoney(calc.baseSalary)}</td>
       <td class="border-r border-black py-2 px-1 num-font">${calc.stdDays} ngày</td>
       <td class="border-r border-black py-2 px-1 num-font text-blue-800 font-semibold">${formatHours(calc.totActual)} h</td>
       <td class="border-r border-black py-2 px-1 num-font text-purple-800 font-semibold">${formatHours(calc.totalOTHours)} h</td>
@@ -619,9 +765,12 @@ function renderVisualChart(data) {
   });
 }
 
-window.goToMonth = function(m) {
+window.goToMonth = async function(m) {
+  saveCurrentMonthInputsToConfigStore();
   currentMonth = m;
   document.getElementById("selectMonth").value = m.toString();
+  loadConfigStoreToInputs(m);
+  await loadFromBackendOrStorage(m, currentYear);
   document.getElementById("tabBtnUnified").click();
   renderUnifiedTable();
 };
@@ -700,14 +849,18 @@ document.getElementById("tabBtnYearSummary").addEventListener("click", () => {
 
 // Month & Year changes
 document.getElementById("selectMonth").addEventListener("change", async (e) => {
+  saveCurrentMonthInputsToConfigStore();
   currentMonth = parseInt(e.target.value);
+  loadConfigStoreToInputs(currentMonth);
   await loadFromBackendOrStorage(currentMonth, currentYear);
   renderUnifiedTable();
 });
 
 document.getElementById("inputYear").addEventListener("change", async (e) => {
+  saveCurrentMonthInputsToConfigStore();
   currentYear = parseInt(e.target.value) || 2026;
   initializeDefaultData();
+  loadConfigStoreToInputs(currentMonth);
   await loadFromBackendOrStorage(currentMonth, currentYear);
   renderUnifiedTable();
 });
@@ -722,6 +875,7 @@ document.getElementById("inputYear").addEventListener("change", async (e) => {
   const el = document.getElementById(id);
   if (el) {
     el.addEventListener("input", () => {
+      saveCurrentMonthInputsToConfigStore();
       recalculateMonth();
       renderYearSummary();
       triggerAutoSave();
@@ -733,6 +887,7 @@ document.getElementById("inputYear").addEventListener("change", async (e) => {
 const taxExemptToggle = document.getElementById("taxExemptToggle");
 if (taxExemptToggle) {
   taxExemptToggle.addEventListener("change", () => {
+    saveCurrentMonthInputsToConfigStore();
     recalculateMonth();
     renderYearSummary();
     triggerAutoSave();
@@ -765,12 +920,9 @@ document.getElementById("btnResetData").addEventListener("click", () => {
   }
 });
 
-// Direct Export Excel with SheetJS
-document.getElementById("btnExportExcel").addEventListener("click", () => {
-  if (typeof XLSX === "undefined") {
-    alert("Thư viện xuất Excel đang tải, vui lòng thử lại sau giây lát.");
-    return;
-  }
+// Build Export Workbook with SheetJS
+function buildExportWorkbook() {
+  if (typeof XLSX === "undefined") return null;
 
   const wb = XLSX.utils.book_new();
 
@@ -785,16 +937,16 @@ document.getElementById("btnExportExcel").addEventListener("click", () => {
     "Thông tin", "Giá trị", "Thông số chuẩn", "Giá trị / Đơn vị"
   ]);
 
-  const empName = document.getElementById("empName").value;
-  const empDept = document.getElementById("empDept").value;
-  const stdWorkDays = document.getElementById("stdWorkDays").innerText;
-  const stdWorkHours = document.getElementById("stdWorkHours").innerText;
-  const baseSal = parseVal(document.getElementById("baseSalary").value);
-  const hourly = document.getElementById("hourlyRate").innerText;
-  const posAllowance = parseVal(document.getElementById("positionAllowance").value);
-  const kpi = parseVal(document.getElementById("kpiCoeff").value);
-  const senAllowance = parseVal(document.getElementById("seniorityAllowance").value);
-  const insSal = document.getElementById("insuranceSalary").innerText;
+  const empName = document.getElementById("empName") ? document.getElementById("empName").value : "Trần Văn A";
+  const empDept = document.getElementById("empDept") ? document.getElementById("empDept").value : "Bộ phận Sản xuất";
+  const stdWorkDays = document.getElementById("stdWorkDays") ? document.getElementById("stdWorkDays").innerText : "26";
+  const stdWorkHours = document.getElementById("stdWorkHours") ? document.getElementById("stdWorkHours").innerText : "208";
+  const baseSal = parseVal(document.getElementById("baseSalary") ? document.getElementById("baseSalary").value : 6300000);
+  const hourly = document.getElementById("hourlyRate") ? document.getElementById("hourlyRate").innerText : "42.548";
+  const posAllowance = parseVal(document.getElementById("positionAllowance") ? document.getElementById("positionAllowance").value : 2450000);
+  const kpi = parseVal(document.getElementById("kpiCoeff") ? document.getElementById("kpiCoeff").value : 1.0);
+  const senAllowance = parseVal(document.getElementById("seniorityAllowance") ? document.getElementById("seniorityAllowance").value : 100000);
+  const insSal = document.getElementById("insuranceSalary") ? document.getElementById("insuranceSalary").innerText : "8.850.000";
 
   const rightRows = [
     ["Họ và tên", empName, "Ngày công chuẩn", stdWorkDays],
@@ -803,37 +955,37 @@ document.getElementById("btnExportExcel").addEventListener("click", () => {
     ["Phụ cấp chức vụ", posAllowance, "Hệ số KPI", kpi],
     ["Thâm niên", senAllowance, "Lương đóng BH", insSal],
     ["MỤC TÍNH LƯƠNG", "CÔNG THỨC / ĐƠN GIÁ", "SỐ GIỜ", "THÀNH TIỀN (VNĐ)"],
-    ["I. LƯƠNG LÀM THỰC TẾ (100%)", document.getElementById("unitRateDay").innerText, document.getElementById("hoursDay").innerText, document.getElementById("amountDay").innerText],
-    ["II. LÀM THÊM GIỜ & CA ĐÊM", "", document.getElementById("totalOTHours").innerText, document.getElementById("totalOTAmount").innerText],
-    ["1. Phụ cấp ca đêm (130%)", document.getElementById("rateOT130").innerText, document.getElementById("hoursOT130").innerText, document.getElementById("amountOT130").innerText],
-    ["2. Tăng ca ngày thường (150%)", document.getElementById("rateOT150").innerText, document.getElementById("hoursOT150").innerText, document.getElementById("amountOT150").innerText],
-    ["3. Tăng ca Chủ Nhật ngày (200%)", document.getElementById("rateOT200").innerText, document.getElementById("hoursOT200").innerText, document.getElementById("amountOT200").innerText],
-    ["4. Tăng ca đêm ngày thường (210%)", document.getElementById("rateOT210").innerText, document.getElementById("hoursOT210").innerText, document.getElementById("amountOT210").innerText],
-    ["5. Tăng ca đêm Chủ Nhật (270%)", document.getElementById("rateOT270").innerText, document.getElementById("hoursOT270").innerText, document.getElementById("amountOT270").innerText],
-    ["6. Tăng ca ngày Lễ (300%)", document.getElementById("rateOT300").innerText, document.getElementById("hoursOT300").innerText, document.getElementById("amountOT300").innerText],
-    ["7. Tăng ca đêm ngày Lễ (390%)", document.getElementById("rateOT390").innerText, document.getElementById("hoursOT390").innerText, document.getElementById("amountOT390").innerText],
-    ["III. CÁC KHOẢN TRỢ CẤP", "", "Tiêu chuẩn", document.getElementById("totalAllowance").innerText],
-    ["1. Trợ cấp xăng xe", "Cố định", "", parseVal(document.getElementById("allowanceGas").value)],
-    ["2. Trợ cấp nhà ở", "Cố định", "", parseVal(document.getElementById("allowanceHouse").value)],
-    ["3. Trợ cấp con nhỏ", "", "", parseVal(document.getElementById("allowanceChild").value)],
-    ["4. Trợ cấp PCCC / an toàn", "/", "", parseVal(document.getElementById("allowanceSafety").value)],
-    ["5. Trợ cấp ca đêm", "Theo ca", "", parseVal(document.getElementById("allowanceNight").value)],
-    ["6. Tiền ăn ca đêm", "Theo ca", "", parseVal(document.getElementById("allowanceMealNight").value)],
-    ["7. Trợ cấp kinh nguyệt", "", "", parseVal(document.getElementById("allowancePeriod").value)],
-    ["8. Trợ cấp khác", "", "", parseVal(document.getElementById("allowanceOther").value)],
-    ["IV. CÁC KHOẢN THƯỞNG", "", "Tiêu chuẩn", document.getElementById("totalBonus").innerText],
-    ["1. Tiền thưởng chuyên cần", document.getElementById("attBonusStatus").innerText, "", parseVal(document.getElementById("bonusAttendance").value)],
-    ["2. Tiền thưởng thành tích KPI", `Hệ số: ${kpi}`, "", parseVal(document.getElementById("bonusKPI").value)],
-    ["V. TỔNG THU NHẬP (I+II+III+IV)", "", "", document.getElementById("totalGrossIncome").innerText],
-    ["VI. CÁC KHOẢN GIẢM TRỪ", "Tỷ lệ", "Lương đóng BH", document.getElementById("headerDeductions").innerText],
-    ["1. Bảo hiểm xã hội (BHXH - 8%)", "8%", insSal, document.getElementById("deductBHXH").innerText],
-    ["2. Bảo hiểm y tế (BHYT - 1.5%)", "1.50%", insSal, document.getElementById("deductBHYT").innerText],
-    ["3. Bảo hiểm thất nghiệp (BHTN - 1%)", "1%", insSal, document.getElementById("deductBHTN").innerText],
-    ["4. Kinh phí công đoàn (0.5%)", "0.50%", insSal, document.getElementById("deductKPCĐ").innerText],
-    ["5. Thuế thu nhập cá nhân (TNCN)", document.getElementById("taxRateLabel") ? document.getElementById("taxRateLabel").innerText : "0% (Miễn thuế)", document.getElementById("taxableAmount").innerText, document.getElementById("deductTNCN").innerText],
-    ["TỔNG CÁC KHOẢN GIẢM TRỪ", "", "", document.getElementById("totalDeductions").innerText],
-    ["VII. THỰC LĨNH / THỰC NHẬN", "", "", document.getElementById("netSalary").innerText],
-    ["Thông tin thanh toán", document.getElementById("bankAccount").value, "Ngân hàng:", document.getElementById("bankName").value]
+    ["I. LƯƠNG LÀM THỰC TẾ (100%)", document.getElementById("unitRateDay") ? document.getElementById("unitRateDay").innerText : "", document.getElementById("hoursDay") ? document.getElementById("hoursDay").innerText : "", document.getElementById("amountDay") ? document.getElementById("amountDay").innerText : ""],
+    ["II. LÀM THÊM GIỜ & CA ĐÊM", "", document.getElementById("totalOTHours") ? document.getElementById("totalOTHours").innerText : "", document.getElementById("totalOTAmount") ? document.getElementById("totalOTAmount").innerText : ""],
+    ["1. Phụ cấp ca đêm (130%)", document.getElementById("rateOT130") ? document.getElementById("rateOT130").innerText : "", document.getElementById("hoursOT130") ? document.getElementById("hoursOT130").innerText : "", document.getElementById("amountOT130") ? document.getElementById("amountOT130").innerText : ""],
+    ["2. Tăng ca ngày thường (150%)", document.getElementById("rateOT150") ? document.getElementById("rateOT150").innerText : "", document.getElementById("hoursOT150") ? document.getElementById("hoursOT150").innerText : "", document.getElementById("amountOT150") ? document.getElementById("amountOT150").innerText : ""],
+    ["3. Tăng ca Chủ Nhật ngày (200%)", document.getElementById("rateOT200") ? document.getElementById("rateOT200").innerText : "", document.getElementById("hoursOT200") ? document.getElementById("hoursOT200").innerText : "", document.getElementById("amountOT200") ? document.getElementById("amountOT200").innerText : ""],
+    ["4. Tăng ca đêm ngày thường (210%)", document.getElementById("rateOT210") ? document.getElementById("rateOT210").innerText : "", document.getElementById("hoursOT210") ? document.getElementById("hoursOT210").innerText : "", document.getElementById("amountOT210") ? document.getElementById("amountOT210").innerText : ""],
+    ["5. Tăng ca đêm Chủ Nhật (270%)", document.getElementById("rateOT270") ? document.getElementById("rateOT270").innerText : "", document.getElementById("hoursOT270") ? document.getElementById("hoursOT270").innerText : "", document.getElementById("amountOT270") ? document.getElementById("amountOT270").innerText : ""],
+    ["6. Tăng ca ngày Lễ (300%)", document.getElementById("rateOT300") ? document.getElementById("rateOT300").innerText : "", document.getElementById("hoursOT300") ? document.getElementById("hoursOT300").innerText : "", document.getElementById("amountOT300") ? document.getElementById("amountOT300").innerText : ""],
+    ["7. Tăng ca đêm ngày Lễ (390%)", document.getElementById("rateOT390") ? document.getElementById("rateOT390").innerText : "", document.getElementById("hoursOT390") ? document.getElementById("hoursOT390").innerText : "", document.getElementById("amountOT390") ? document.getElementById("amountOT390").innerText : ""],
+    ["III. CÁC KHOẢN TRỢ CẤP", "", "Tiêu chuẩn", document.getElementById("totalAllowance") ? document.getElementById("totalAllowance").innerText : ""],
+    ["1. Trợ cấp xăng xe", "Cố định", "", parseVal(document.getElementById("allowanceGas") ? document.getElementById("allowanceGas").value : 500000)],
+    ["2. Trợ cấp nhà ở", "Cố định", "", parseVal(document.getElementById("allowanceHouse") ? document.getElementById("allowanceHouse").value : 500000)],
+    ["3. Trợ cấp con nhỏ", "", "", parseVal(document.getElementById("allowanceChild") ? document.getElementById("allowanceChild").value : 0)],
+    ["4. Trợ cấp PCCC/ Trợ cấp an toàn", "/", "", parseVal(document.getElementById("allowanceSafety") ? document.getElementById("allowanceSafety").value : 0)],
+    ["5. Trợ cấp ca đêm", "", "", parseVal(document.getElementById("allowanceNight") ? document.getElementById("allowanceNight").value : 0)],
+    ["6. Tiền ăn ca đêm / Tiền 10K ca ngày", "", "", parseVal(document.getElementById("allowanceMealNight") ? document.getElementById("allowanceMealNight").value : 0)],
+    ["7. Trợ cấp kinh nguyệt", "", "", parseVal(document.getElementById("allowancePeriod") ? document.getElementById("allowancePeriod").value : 0)],
+    ["8. Trợ cấp khác", "", "", parseVal(document.getElementById("allowanceOther") ? document.getElementById("allowanceOther").value : 0)],
+    ["IV. CÁC KHOẢN THƯỞNG", "", "Tiêu chuẩn", document.getElementById("totalBonus") ? document.getElementById("totalBonus").innerText : ""],
+    ["1. Tiền thưởng chuyên cần", document.getElementById("attBonusStatus") ? document.getElementById("attBonusStatus").innerText : "Đủ công", "", parseVal(document.getElementById("bonusAttendance") ? document.getElementById("bonusAttendance").value : 600000)],
+    ["2. Tiền thưởng thành tích KPI", `Hệ số: ${kpi}`, "", parseVal(document.getElementById("bonusKPI") ? document.getElementById("bonusKPI").value : 3050000)],
+    ["V. TỔNG THU NHẬP (I+II+III+IV)", "", "", document.getElementById("totalGrossIncome") ? document.getElementById("totalGrossIncome").innerText : ""],
+    ["VI. CÁC KHOẢN GIẢM TRỪ", "Tỷ lệ", "Lương đóng BH", document.getElementById("headerDeductions") ? document.getElementById("headerDeductions").innerText : ""],
+    ["1. Bảo hiểm xã hội (BHXH - 8%)", "8%", insSal, document.getElementById("deductBHXH") ? document.getElementById("deductBHXH").innerText : ""],
+    ["2. Bảo hiểm y tế (BHYT - 1.5%)", "1.50%", insSal, document.getElementById("deductBHYT") ? document.getElementById("deductBHYT").innerText : ""],
+    ["3. Bảo hiểm thất nghiệp (BHTN - 1%)", "1%", insSal, document.getElementById("deductBHTN") ? document.getElementById("deductBHTN").innerText : ""],
+    ["4. Kinh phí công đoàn (0.5%)", "0.50%", insSal, document.getElementById("deductKPCĐ") ? document.getElementById("deductKPCĐ").innerText : ""],
+    ["5. Thuế thu nhập cá nhân (TNCN)", document.getElementById("taxRateLabel") ? document.getElementById("taxRateLabel").innerText : "0% (Miễn thuế)", document.getElementById("taxableAmount") ? document.getElementById("taxableAmount").innerText : "0", document.getElementById("deductTNCN") ? document.getElementById("deductTNCN").innerText : "0"],
+    ["TỔNG CÁC KHOẢN GIẢM TRỪ", "", "", document.getElementById("totalDeductions") ? document.getElementById("totalDeductions").innerText : ""],
+    ["VII. THỰC LĨNH / THỰC NHẬN", "", "", document.getElementById("netSalary") ? document.getElementById("netSalary").innerText : ""],
+    ["Thông tin thanh toán", document.getElementById("bankAccount") ? document.getElementById("bankAccount").value : "", "Ngân hàng:", document.getElementById("bankName") ? document.getElementById("bankName").value : ""]
   ];
 
   const totalDays = getDaysInMonth(currentYear, currentMonth);
@@ -867,15 +1019,15 @@ document.getElementById("btnExportExcel").addEventListener("click", () => {
   // Row tổng cộng
   ws1Data.push([
     "TỔNG CỘNG",
-    document.getElementById("totStdUnified").innerText,
-    document.getElementById("totActualUnified").innerText,
-    document.getElementById("tot130Unified").innerText,
-    document.getElementById("tot150Unified").innerText,
-    document.getElementById("tot200Unified").innerText,
-    document.getElementById("tot210Unified").innerText,
-    document.getElementById("tot270Unified").innerText,
-    document.getElementById("tot300Unified").innerText,
-    document.getElementById("tot390Unified").innerText
+    document.getElementById("totStdUnified") ? document.getElementById("totStdUnified").innerText : "",
+    document.getElementById("totActualUnified") ? document.getElementById("totActualUnified").innerText : "",
+    document.getElementById("tot130Unified") ? document.getElementById("tot130Unified").innerText : "",
+    document.getElementById("tot150Unified") ? document.getElementById("tot150Unified").innerText : "",
+    document.getElementById("tot200Unified") ? document.getElementById("tot200Unified").innerText : "",
+    document.getElementById("tot210Unified") ? document.getElementById("tot210Unified").innerText : "",
+    document.getElementById("tot270Unified") ? document.getElementById("tot270Unified").innerText : "",
+    document.getElementById("tot300Unified") ? document.getElementById("tot300Unified").innerText : "",
+    document.getElementById("tot390Unified") ? document.getElementById("tot390Unified").innerText : ""
   ]);
 
   const ws1 = XLSX.utils.aoa_to_sheet(ws1Data);
@@ -885,7 +1037,7 @@ document.getElementById("btnExportExcel").addEventListener("click", () => {
   const ws2Data = [];
   ws2Data.push([`BẢNG THỐNG KÊ TỔNG TIỀN LƯƠNG 12 THÁNG NĂM ${currentYear}`]);
   ws2Data.push([
-    "Tháng", "Công chuẩn", "Giờ thực tế", "Tổng giờ OT", "Lương thời gian", "Tiền OT",
+    "Tháng", "Lương cơ bản (LCB)", "Công chuẩn", "Giờ thực tế", "Tổng giờ OT", "Lương thời gian", "Tiền OT",
     "Trợ cấp & Thưởng", "Tổng thu nhập", "Giảm trừ bảo hiểm", "THỰC LĨNH (VNĐ)"
   ]);
 
@@ -905,6 +1057,7 @@ document.getElementById("btnExportExcel").addEventListener("click", () => {
 
     ws2Data.push([
       `Tháng ${m}`,
+      calc.baseSalary,
       calc.stdDays,
       calc.totActual,
       calc.totalOTHours,
@@ -919,6 +1072,7 @@ document.getElementById("btnExportExcel").addEventListener("click", () => {
 
   ws2Data.push([
     "TỔNG CẢ NĂM",
+    "-",
     yStd,
     yActual,
     yOT,
@@ -933,7 +1087,33 @@ document.getElementById("btnExportExcel").addEventListener("click", () => {
   const ws2 = XLSX.utils.aoa_to_sheet(ws2Data);
   XLSX.utils.book_append_sheet(wb, ws2, `Thong Ke 12 Thang ${currentYear}`);
 
-  XLSX.writeFile(wb, `Bang_Cham_Cong_Va_Thong_Ke_Nam_${currentYear}.xlsx`);
+  return wb;
+}
+
+// Lấy Base64 của file Excel .xlsx
+function getExportExcelBase64() {
+  try {
+    if (typeof XLSX === "undefined") return null;
+    const wb = buildExportWorkbook();
+    if (!wb) return null;
+    return XLSX.write(wb, { bookType: "xlsx", type: "base64" });
+  } catch(e) {
+    console.error("Lỗi tạo base64 Excel:", e);
+    return null;
+  }
+}
+
+// Direct Export Excel with SheetJS
+document.getElementById("btnExportExcel").addEventListener("click", () => {
+  if (typeof XLSX === "undefined") {
+    alert("Thư viện xuất Excel đang tải, vui lòng thử lại sau giây lát.");
+    return;
+  }
+
+  const wb = buildExportWorkbook();
+  if (wb) {
+    XLSX.writeFile(wb, `Bang_Cham_Cong_Va_Thong_Ke_Nam_${currentYear}.xlsx`);
+  }
 });
 
 // ========================================================
@@ -1029,25 +1209,29 @@ function applyConfigToInputs(cfg) {
     const el = document.getElementById(id);
     if (el && val !== undefined && val !== null) el.value = val;
   };
-  setVal("baseSalary", cfg.base_salary);
-  setVal("positionAllowance", cfg.pos_allowance);
-  setVal("seniorityAllowance", cfg.sen_allowance);
-  setVal("kpiCoeff", cfg.kpi_coeff);
-  setVal("allowanceGas", cfg.allowance_gas);
-  setVal("allowanceHouse", cfg.allowance_house);
-  setVal("allowanceChild", cfg.allowance_child);
-  setVal("allowanceSafety", cfg.allowance_safety);
-  setVal("allowanceNight", cfg.allowance_night);
-  setVal("allowanceMealNight", cfg.allowance_meal_night);
-  setVal("allowancePeriod", cfg.allowance_period);
-  setVal("allowanceOther", cfg.allowance_other);
-  setVal("bonusAttendance", cfg.bonus_attendance);
-  setVal("bonusKPI", cfg.bonus_kpi);
-  setVal("bankAccount", cfg.bank_account);
-  setVal("bankName", cfg.bank_name);
-  if (cfg.is_tax_exempt !== undefined && document.getElementById("taxExemptToggle")) {
-    document.getElementById("taxExemptToggle").checked = (cfg.is_tax_exempt == 1);
+  setVal("baseSalary", cfg.base_salary !== undefined ? cfg.base_salary : cfg.baseSalary);
+  setVal("positionAllowance", cfg.pos_allowance !== undefined ? cfg.pos_allowance : cfg.positionAllowance);
+  setVal("seniorityAllowance", cfg.sen_allowance !== undefined ? cfg.sen_allowance : cfg.seniorityAllowance);
+  setVal("kpiCoeff", cfg.kpi_coeff !== undefined ? cfg.kpi_coeff : cfg.kpiCoeff);
+  setVal("allowanceGas", cfg.allowance_gas !== undefined ? cfg.allowance_gas : cfg.allowanceGas);
+  setVal("allowanceHouse", cfg.allowance_house !== undefined ? cfg.allowance_house : cfg.allowanceHouse);
+  setVal("allowanceChild", cfg.allowance_child !== undefined ? cfg.allowance_child : cfg.allowanceChild);
+  setVal("allowanceSafety", cfg.allowance_safety !== undefined ? cfg.allowance_safety : cfg.allowanceSafety);
+  setVal("allowanceNight", cfg.allowance_night !== undefined ? cfg.allowance_night : cfg.allowanceNight);
+  setVal("allowanceMealNight", cfg.allowance_meal_night !== undefined ? cfg.allowance_meal_night : cfg.allowanceMealNight);
+  setVal("allowancePeriod", cfg.allowance_period !== undefined ? cfg.allowance_period : cfg.allowancePeriod);
+  setVal("allowanceOther", cfg.allowance_other !== undefined ? cfg.allowance_other : cfg.allowanceOther);
+  setVal("bonusAttendance", cfg.bonus_attendance !== undefined ? cfg.bonus_attendance : cfg.bonusAttendance);
+  setVal("bonusKPI", cfg.bonus_kpi !== undefined ? cfg.bonus_kpi : cfg.bonusKPI);
+  setVal("bankAccount", cfg.bank_account || cfg.bankAccount);
+  setVal("bankName", cfg.bank_name || cfg.bankName);
+  const taxEx = (cfg.is_tax_exempt !== undefined) ? cfg.is_tax_exempt : (cfg.isTaxExempt !== undefined ? cfg.isTaxExempt : 1);
+  if (document.getElementById("taxExemptToggle")) {
+    document.getElementById("taxExemptToggle").checked = (taxEx == 1);
   }
+
+  // Cập nhật lại config store cho tháng này
+  saveCurrentMonthInputsToConfigStore();
 }
 
 function collectConfigPayload() {
@@ -1122,6 +1306,204 @@ function triggerAutoSave() {
   }, 1200);
 }
 
+// ========================================================
+// GOOGLE DRIVE AUTO-BACKUP WEBHOOK INTEGRATION
+// Tự động xuất file Excel .xlsx và ghi đè vào đúng 1 file duy nhất
+// ========================================================
+const APPS_SCRIPT_TEMPLATE = `function doPost(e) {
+  try {
+    var rawData = e.postData.contents;
+    var payload = JSON.parse(rawData);
+    var fileName = payload.file_name || "Bang_Cham_Cong_Tu_Dong.xlsx";
+    var excelBase64 = payload.excel_base64;
+    
+    var blob;
+    if (excelBase64) {
+      // 1. Giải mã Base64 thành file Excel (.xlsx) chuẩn
+      var bytes = Utilities.base64Decode(excelBase64);
+      blob = Utilities.newBlob(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+    } else {
+      // Dữ liệu JSON dự phòng nếu không có base64
+      blob = Utilities.newBlob(rawData, "application/json", "Bang_Cham_Cong_Backup.json");
+    }
+
+    // 2. Tìm và xóa bản cũ để LUÔN DUY TRÌ ĐÚNG 1 FILE DUY NHẤT TRÊN DRIVE
+    var files = DriveApp.getFilesByName(fileName);
+    while (files.hasNext()) {
+      var oldFile = files.next();
+      oldFile.setTrashed(true);
+    }
+
+    // 3. Tạo file Excel mới nhất lưu vào Google Drive
+    var targetFile = DriveApp.createFile(blob);
+
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "success",
+      message: "Đã cập nhật file Excel duy nhất: " + fileName,
+      fileId: targetFile.getId(),
+      updatedAt: new Date().toISOString()
+    })).setMimeType(ContentService.MimeType.JSON);
+
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "error",
+      message: err.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doGet(e) {
+  return ContentService.createTextOutput(JSON.stringify({
+    status: "online",
+    message: "Google Drive Auto-Backup Excel Webhook đang hoạt động."
+  })).setMimeType(ContentService.MimeType.JSON);
+};`;
+
+let gdriveWebhookUrl = "";
+
+async function initGDriveUI() {
+  const codeEl = document.getElementById("appsScriptCodeBlock");
+  if (codeEl) codeEl.innerText = APPS_SCRIPT_TEMPLATE;
+
+  // Load saved Webhook URL from backend or localStorage
+  if (isBackendConnected) {
+    try {
+      const resp = await fetch(`${API_BASE}/api/settings/gdrive`);
+      if (resp.ok) {
+        const data = await resp.json();
+        gdriveWebhookUrl = data.webhook_url || "";
+        updateGDriveBadge(gdriveWebhookUrl, data.last_sync);
+      }
+    } catch(e) {}
+  } else {
+    gdriveWebhookUrl = localStorage.getItem("gdrive_webhook_url") || "";
+    const lastSync = localStorage.getItem("gdrive_last_sync");
+    updateGDriveBadge(gdriveWebhookUrl, lastSync);
+  }
+
+  const inputEl = document.getElementById("inputGDriveWebhookUrl");
+  if (inputEl) inputEl.value = gdriveWebhookUrl;
+}
+
+function updateGDriveBadge(url, lastSync) {
+  const badgeText = document.getElementById("gdriveStatusText");
+  const lastSyncLabel = document.getElementById("gdriveLastSyncLabel");
+  if (!badgeText) return;
+
+  if (url && url.startsWith("http")) {
+    badgeText.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 inline-block mr-1"></span> GDrive (Tự động)`;
+    if (lastSyncLabel) {
+      if (lastSync) {
+        const d = new Date(lastSync);
+        lastSyncLabel.innerText = `Đã đồng bộ: ${d.toLocaleTimeString("vi-VN")} ${d.toLocaleDateString("vi-VN")}`;
+      } else {
+        lastSyncLabel.innerText = "Đã kết nối Webhook";
+      }
+    }
+  } else {
+    badgeText.innerText = "Google Drive";
+    if (lastSyncLabel) lastSyncLabel.innerText = "Chưa kết nối";
+  }
+}
+
+// Modal open/close
+const modalEl = document.getElementById("gdriveModal");
+document.getElementById("btnOpenGDriveModal").addEventListener("click", () => {
+  if (modalEl) {
+    modalEl.classList.remove("hidden");
+    document.getElementById("inputGDriveWebhookUrl").value = gdriveWebhookUrl;
+  }
+});
+
+const closeModal = () => { if (modalEl) modalEl.classList.add("hidden"); };
+document.getElementById("btnCloseGDriveModal").addEventListener("click", closeModal);
+document.getElementById("btnCancelGDriveModal").addEventListener("click", closeModal);
+
+// Copy script button
+document.getElementById("btnCopyAppsScript").addEventListener("click", () => {
+  navigator.clipboard.writeText(APPS_SCRIPT_TEMPLATE).then(() => {
+    showToast("Đã sao chép mã Google Apps Script vào bộ nhớ tạm!");
+  }).catch(() => {
+    showToast("Vui lòng bôi đen và copy trực tiếp khung mã bên dưới", "info");
+  });
+});
+
+// Save Webhook URL
+document.getElementById("btnSaveGDriveUrl").addEventListener("click", async () => {
+  const url = document.getElementById("inputGDriveWebhookUrl").value.trim();
+  gdriveWebhookUrl = url;
+  localStorage.setItem("gdrive_webhook_url", url);
+
+  if (isBackendConnected) {
+    try {
+      const resp = await fetch(`${API_BASE}/api/settings/gdrive`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ webhook_url: url })
+      });
+      if (resp.ok) {
+        showToast("Đã lưu cấu hình Google Drive Webhook!");
+        updateGDriveBadge(url, new Date().toISOString());
+        closeModal();
+        return;
+      }
+    } catch(e) {}
+  }
+
+  showToast("Đã lưu cấu hình vào trình duyệt (Offline)");
+  updateGDriveBadge(url, null);
+  closeModal();
+});
+
+// Test / Manual Sync
+document.getElementById("btnTestSyncGDrive").addEventListener("click", async () => {
+  const url = document.getElementById("inputGDriveWebhookUrl").value.trim() || gdriveWebhookUrl;
+  if (!url || !url.startsWith("http")) {
+    alert("Vui lòng nhập đường link Google Web App URL hợp lệ trước.");
+    return;
+  }
+
+  showToast("Đang gửi dữ liệu sao lưu lên Google Drive...", "info");
+
+  if (isBackendConnected) {
+    try {
+      // First save URL if changed
+      await fetch(`${API_BASE}/api/settings/gdrive`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ webhook_url: url })
+      });
+      await fetch(`${API_BASE}/api/sync-gdrive`, { method: "POST" });
+      showToast("✅ Đã gửi lệnh đồng bộ lên Google Drive (chỉ 1 file duy nhất)!");
+      updateGDriveBadge(url, new Date().toISOString());
+      return;
+    } catch(e) {}
+  }
+
+  // Frontend direct sync fallback
+  try {
+    const excelBase64 = getExportExcelBase64();
+    const payload = {
+      source: "BangCongWebDirect",
+      export_time: new Date().toISOString(),
+      file_name: "Bang_Cham_Cong_Tu_Dong.xlsx",
+      excel_base64: excelBase64,
+      monthlyStore: monthlyStore
+    };
+    await fetch(url, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    localStorage.setItem("gdrive_last_sync", new Date().toISOString());
+    updateGDriveBadge(url, new Date().toISOString());
+    showToast("✅ Đã xuất và gửi file Excel (.xlsx) lên Google Drive thành công!");
+  } catch(e) {
+    showToast("Có lỗi khi kết nối Google Drive, vui lòng kiểm tra lại URL", "info");
+  }
+});
+
 // Button "Lưu CSDL"
 document.getElementById("btnSaveToDB").addEventListener("click", () => {
   saveCurrentMonthToBackend(false);
@@ -1132,5 +1514,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   initializeDefaultData();
   await checkBackendStatus();
   await loadFromBackendOrStorage(currentMonth, currentYear);
+  await initGDriveUI();
   renderUnifiedTable();
 });

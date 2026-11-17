@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -67,6 +67,15 @@ def init_db():
                 bank_name TEXT DEFAULT 'VietinBank',
                 updated_at TEXT,
                 PRIMARY KEY (year, month)
+            )
+        """)
+
+        # Table 3: App Settings (Google Drive Webhook, etc.)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT,
+                updated_at TEXT
             )
         """)
         conn.commit()
@@ -248,7 +257,7 @@ def get_attendance(year: int, month: int):
         return {"year": year, "month": month, "days": days_dict}
 
 @app.post("/api/attendance/{year}/{month}")
-def save_month_attendance(year: int, month: int, payload: MonthAttendancePayload):
+def save_month_attendance(year: int, month: int, payload: MonthAttendancePayload, background_tasks: BackgroundTasks):
     now_iso = datetime.now().isoformat()
     with get_db() as conn:
         cursor = conn.cursor()
@@ -265,6 +274,9 @@ def save_month_attendance(year: int, month: int, payload: MonthAttendancePayload
                 now_iso
             ))
         conn.commit()
+    
+    # Auto-sync to Google Drive in background if configured
+    background_tasks.add_task(trigger_gdrive_sync)
     return {"success": True, "message": f"Đã lưu chấm công Tháng {month}/{year} thành công."}
 
 @app.get("/api/config/{year}/{month}")
@@ -299,7 +311,7 @@ def get_salary_config(year: int, month: int):
         return dict(row)
 
 @app.post("/api/config/{year}/{month}")
-def save_salary_config(year: int, month: int, payload: SalaryConfigPayload):
+def save_salary_config(year: int, month: int, payload: SalaryConfigPayload, background_tasks: BackgroundTasks):
     now_iso = datetime.now().isoformat()
     with get_db() as conn:
         cursor = conn.cursor()
@@ -319,7 +331,103 @@ def save_salary_config(year: int, month: int, payload: SalaryConfigPayload):
             now_iso
         ))
         conn.commit()
+    
+    # Auto-sync to Google Drive in background if configured
+    background_tasks.add_task(trigger_gdrive_sync)
     return {"success": True, "message": f"Đã lưu cấu hình lương Tháng {month}/{year} thành công."}
+
+# ----------------- GOOGLE DRIVE SYNC ENGINE -----------------
+class GDriveSettingsPayload(BaseModel):
+    webhook_url: str
+
+def get_excel_base64():
+    """Lấy nội dung file Excel Bang_Cham_Cong_Tu_Dong.xlsx dưới dạng base64."""
+    import base64
+    excel_path = os.path.join(os.path.dirname(__file__), "Bang_Cham_Cong_Tu_Dong.xlsx")
+    if os.path.exists(excel_path):
+        with open(excel_path, "rb") as f:
+            return base64.b64encode(f.read()).decode("utf-8")
+    return None
+
+def trigger_gdrive_sync():
+    """Tự động đồng bộ file Excel (.xlsx) lên Google Drive (ghi đè vào 1 file duy nhất)."""
+    import urllib.request
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT value FROM settings WHERE key = 'gdrive_webhook_url'")
+            row = cursor.fetchone()
+            if not row or not row["value"]:
+                return
+            webhook_url = row["value"].strip()
+            if not webhook_url.startswith("http"):
+                return
+            
+            cursor.execute("SELECT * FROM attendance ORDER BY year, month, day")
+            att_rows = [dict(r) for r in cursor.fetchall()]
+            cursor.execute("SELECT * FROM salary_config ORDER BY year, month")
+            cfg_rows = [dict(r) for r in cursor.fetchall()]
+
+            excel_b64 = get_excel_base64()
+            payload = {
+                "source": "BangCongAutoBackup",
+                "export_time": datetime.now().isoformat(),
+                "file_name": "Bang_Cham_Cong_Tu_Dong.xlsx",
+                "excel_base64": excel_b64,
+                "total_records": len(att_rows),
+                "attendance": att_rows,
+                "salary_config": cfg_rows
+            }
+
+            req = urllib.request.Request(
+                webhook_url,
+                data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+                headers={"Content-Type": "application/json", "User-Agent": "BangCongApp/1.0"}
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                now_iso = datetime.now().isoformat()
+                cursor.execute("""
+                    INSERT OR REPLACE INTO settings (key, value, updated_at)
+                    VALUES ('last_gdrive_sync', ?, ?)
+                """, (now_iso, now_iso))
+                conn.commit()
+                print(f"[GDrive Sync] Auto-synced Excel file (.xlsx) to Google Drive successfully at {now_iso}")
+    except Exception as e:
+        print(f"[GDrive Sync Warning]: {e}")
+
+@app.get("/api/settings/gdrive")
+def get_gdrive_settings():
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM settings WHERE key = 'gdrive_webhook_url'")
+        url_row = cursor.fetchone()
+        cursor.execute("SELECT value FROM settings WHERE key = 'last_gdrive_sync'")
+        sync_row = cursor.fetchone()
+        return {
+            "webhook_url": url_row["value"] if url_row else "",
+            "last_sync": sync_row["value"] if sync_row else None
+        }
+
+@app.post("/api/settings/gdrive")
+def save_gdrive_settings(payload: GDriveSettingsPayload, background_tasks: BackgroundTasks):
+    now_iso = datetime.now().isoformat()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO settings (key, value, updated_at)
+            VALUES ('gdrive_webhook_url', ?, ?)
+        """, (payload.webhook_url.strip(), now_iso))
+        conn.commit()
+    
+    if payload.webhook_url.strip():
+        background_tasks.add_task(trigger_gdrive_sync)
+    
+    return {"success": True, "message": "Đã lưu cấu hình Google Drive Webhook thành công."}
+
+@app.post("/api/sync-gdrive")
+def manual_sync_gdrive(background_tasks: BackgroundTasks):
+    background_tasks.add_task(trigger_gdrive_sync)
+    return {"success": True, "message": "Đang đồng bộ dữ liệu lên Google Drive trong nền."}
 
 @app.get("/api/backup")
 def export_backup():
