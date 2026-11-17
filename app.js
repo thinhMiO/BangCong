@@ -45,7 +45,9 @@ function getDefaultSalaryConfig(m) {
 function saveCurrentMonthInputsToConfigStore() {
   const getNum = (id, fallback) => {
     const el = document.getElementById(id);
-    return el ? (parseVal(el.value) || fallback) : fallback;
+    if (!el) return fallback;
+    const v = parseVal(el.value);
+    return isNaN(v) ? fallback : v;
   };
   const getStr = (id, fallback) => {
     const el = document.getElementById(id);
@@ -71,6 +73,8 @@ function saveCurrentMonthInputsToConfigStore() {
     bankAccount: getStr("bankAccount", "STK: 102884878810"),
     bankName: getStr("bankName", "VietinBank")
   };
+  // Đồng bộ ngay lập tức vào localStorage để không bao giờ bị mất dữ liệu
+  localStorage.setItem(`cfg_${currentYear}_${currentMonth}`, JSON.stringify(monthlyConfigStore[currentMonth]));
 }
 
 function loadConfigStoreToInputs(m) {
@@ -234,6 +238,19 @@ function initializeDefaultData() {
     const totalDays = getDaysInMonth(currentYear, m);
     monthlyStore[m] = {};
 
+    // 1. ƯU TIÊN SỐ 1: Nạp từ localStorage nếu người dùng đã từng lưu/chấm công tháng này
+    const savedAtt = localStorage.getItem(`att_${currentYear}_${m}`);
+    if (savedAtt) {
+      try {
+        const parsed = JSON.parse(savedAtt);
+        if (parsed && Object.keys(parsed).length > 0) {
+          monthlyStore[m] = parsed;
+          continue; // ĐÃ CÓ DỮ LIỆU ĐƯỢC LƯU, GIỮ NGUYÊN DỮ LIỆU CỦA NGƯỜI DÙNG!
+        }
+      } catch(e) {}
+    }
+
+    // 2. NẾU CHƯA CÓ LƯU THÌ MỚI DÙNG DỮ LIỆU MẪU BAN ĐẦU:
     if (m === 12) {
       // Month 12: Day Shift sample (Image 2)
       for (let d = 1; d <= totalDays; d++) {
@@ -249,19 +266,27 @@ function initializeDefaultData() {
         }
       }
     } else if (m === 11) {
-      // Month 11: Night Shift sample (Image 1)
+      // Month 11: Night Shift sample (Khớp chính xác 100% Ảnh 1)
       for (let d = 1; d <= totalDays; d++) {
         const isSun = (new Date(currentYear, 10, d).getDay() === 0);
         if (isSun) {
-          applyShiftToDay(m, d, "night");
           if (d === 1) {
-            monthlyStore[m][d].ot200 = "";
-            monthlyStore[m][d].ot270 = "";
+            monthlyStore[m][d] = { shift: "off", std: "", actual: "", ot130: "", ot150: "", ot200: "", ot210: "", ot270: "", ot300: "", ot390: "" };
+          } else {
+            monthlyStore[m][d] = { shift: "night", std: "", actual: "", ot130: "", ot150: "", ot200: (d === 22 ? 4 : 4.5), ot210: "", ot270: 7.75, ot300: "", ot390: "" };
           }
         } else if (d === 24) {
           monthlyStore[m][d] = { shift: "day", std: 8, actual: 8, ot130: "", ot150: "", ot200: "", ot210: "", ot270: "", ot300: "", ot390: "" };
+        } else if ([6, 9, 12, 21, 28].includes(d)) {
+          monthlyStore[m][d] = { shift: "night", std: 8, actual: 2, ot130: 6, ot150: 2.5, ot200: "", ot210: 1.75, ot270: "", ot300: "", ot390: "" };
+        } else if (d === 10) {
+          monthlyStore[m][d] = { shift: "night", std: 8, actual: 2, ot130: 6, ot150: 3, ot200: "", ot210: 1.75, ot270: "", ot300: "", ot390: "" };
+        } else if (d === 20) {
+          monthlyStore[m][d] = { shift: "night", std: 8, actual: 2, ot130: 6, ot150: 2, ot200: "", ot210: 6.05, ot270: "", ot300: "", ot390: "" };
+        } else if ([7, 14].includes(d)) {
+          monthlyStore[m][d] = { shift: "night", std: 8, actual: 2, ot130: 6, ot150: 1.5, ot200: "", ot210: 1.75, ot270: "", ot300: "", ot390: "" };
         } else {
-          applyShiftToDay(m, d, "night");
+          monthlyStore[m][d] = { shift: "night", std: 8, actual: 2, ot130: 6, ot150: 2, ot200: "", ot210: 1.75, ot270: "", ot300: "", ot390: "" };
         }
       }
     } else {
@@ -349,7 +374,12 @@ function renderUnifiedTable() {
 
 window.setDayShift = function(day, shiftType) {
   applyShiftToDay(currentMonth, day, shiftType);
+  if (monthlyStore[currentMonth]) {
+    localStorage.setItem(`att_${currentYear}_${currentMonth}`, JSON.stringify(monthlyStore[currentMonth]));
+  }
+  saveCurrentMonthInputsToConfigStore();
   renderUnifiedTable();
+  triggerAutoSave();
 };
 
 function attachTableInputs() {
@@ -416,10 +446,10 @@ function calculateSalaryForMonth(monthNum) {
   }
 
   // 1. Lương cơ bản & các phụ cấp lương của riêng tháng này
-  const baseSalary = cfg.baseSalary;
-  const posAllowance = cfg.positionAllowance;
-  const senAllowance = cfg.seniorityAllowance;
-  const kpiCoeff = cfg.kpiCoeff;
+  const baseSalary = (cfg.baseSalary !== undefined && cfg.baseSalary !== null) ? cfg.baseSalary : 6300000;
+  const posAllowance = (cfg.positionAllowance !== undefined && cfg.positionAllowance !== null) ? cfg.positionAllowance : 2450000;
+  const senAllowance = (cfg.seniorityAllowance !== undefined && cfg.seniorityAllowance !== null) ? cfg.seniorityAllowance : 100000;
+  const kpiCoeff = (cfg.kpiCoeff !== undefined && cfg.kpiCoeff !== null) ? cfg.kpiCoeff : 1.0;
 
   // 2. Công chuẩn, Giờ tiêu chuẩn và Đơn giá 1 giờ
   const stdDays = getStandardWorkDays(currentYear, monthNum);
@@ -458,20 +488,21 @@ function calculateSalaryForMonth(monthNum) {
   const totalOTAmount = amount130 + amount150 + amount200 + amount210 + amount270 + amount300 + amount390;
 
   // 5. III. CÁC KHOẢN TRỢ CẤP (Theo hồ sơ lương của riêng tháng này)
-  const gas = cfg.allowanceGas;
-  const house = cfg.allowanceHouse;
-  const child = cfg.allowanceChild;
-  const safety = cfg.allowanceSafety;
-  const nightSubsidy = (monthNum === currentMonth) ? cfg.allowanceNight : (cfg.allowanceNight || (nightShifts * 30000));
-  const mealNight = (monthNum === currentMonth) ? cfg.allowanceMealNight : (cfg.allowanceMealNight || (nightShifts * 25000));
-  const period = cfg.allowancePeriod;
-  const other = cfg.allowanceOther;
+  const gas = (cfg.allowanceGas !== undefined && cfg.allowanceGas !== null) ? cfg.allowanceGas : 500000;
+  const house = (cfg.allowanceHouse !== undefined && cfg.allowanceHouse !== null) ? cfg.allowanceHouse : 500000;
+  const child = cfg.allowanceChild || 0;
+  const safety = cfg.allowanceSafety || 0;
+  // Đồng nhất 100% cho mọi tháng (không dùng toán tử 3 ngôi phân biệt currentMonth):
+  const nightSubsidy = (cfg.allowanceNight !== undefined && cfg.allowanceNight !== null) ? cfg.allowanceNight : (nightShifts * 30000);
+  const mealNight = (cfg.allowanceMealNight !== undefined && cfg.allowanceMealNight !== null) ? cfg.allowanceMealNight : (nightShifts * 25000);
+  const period = cfg.allowancePeriod || 0;
+  const other = cfg.allowanceOther || 0;
   const totalAllowance = gas + house + child + safety + nightSubsidy + mealNight + period + other;
 
   // 6. IV. CÁC KHOẢN THƯỞNG
   // Người dùng xác nhận: Khi trong cột giờ thực tế hoặc cột ca đêm 130% có số liệu thì vẫn đi làm và vẫn tính đủ công và đủ tiền chuyên cần!
   const isFullAttendance = (workedDays >= stdDays) || (totalBaseWorkedHours >= stdHours);
-  const baseBonusAtt = cfg.bonusAttendance;
+  const baseBonusAtt = (cfg.bonusAttendance !== undefined && cfg.bonusAttendance !== null) ? cfg.bonusAttendance : 600000;
   let bonusAtt = 0;
   if (isFullAttendance) {
     bonusAtt = baseBonusAtt;
@@ -479,7 +510,7 @@ function calculateSalaryForMonth(monthNum) {
     bonusAtt = (workedDays >= stdDays - 2) ? Math.round(baseBonusAtt * (workedDays / stdDays)) : 0;
   }
 
-  const baseKPI = cfg.bonusKPI;
+  const baseKPI = (cfg.bonusKPI !== undefined && cfg.bonusKPI !== null) ? cfg.bonusKPI : 3050000;
   const totalBonus = bonusAtt + Math.round(baseKPI * kpiCoeff);
 
   // 7. V. TỔNG THU NHẬP (GROSS) = I + II + III + IV
@@ -669,6 +700,7 @@ function recalculateMonth(nightShiftsCount) {
 // BẢNG THỐNG KÊ TỔNG TIỀN 12 THÁNG TRONG NĂM
 // ========================================================
 function renderYearSummary() {
+  saveCurrentMonthInputsToConfigStore();
   document.getElementById("summaryYearLabel").innerText = currentYear;
 
   const tbody = document.getElementById("tbodyYearSummary");
@@ -695,10 +727,11 @@ function renderYearSummary() {
     yearNet += calc.netSalary;
 
     const tr = document.createElement("tr");
-    tr.className = `border-b border-black text-center ${m === currentMonth ? "bg-amber-100/60 font-semibold" : "hover:bg-slate-50"}`;
+    const isCur = (m === currentMonth);
+    tr.className = `border-b border-black text-center ${isCur ? "bg-amber-100/90 font-bold ring-2 ring-inset ring-amber-400" : "hover:bg-slate-50"}`;
 
     tr.innerHTML = `
-      <td class="border-r border-black py-2 px-2 font-bold text-slate-900">Tháng ${m} ${m === currentMonth ? "<span class='text-[10px] bg-blue-600 text-white px-1.5 py-0.2 rounded ml-1'>Hiện tại</span>" : ""}</td>
+      <td class="border-r border-black py-2 px-2 font-bold text-slate-900">Tháng ${m} ${isCur ? "<span class='text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded font-bold ml-1 shadow-2xs'>Đang xem T" + m + "</span>" : ""}</td>
       <td class="border-r border-black py-2 px-2 num-font text-right font-semibold text-slate-800 bg-slate-50/50">${formatMoney(calc.baseSalary)}</td>
       <td class="border-r border-black py-2 px-1 num-font">${calc.stdDays} ngày</td>
       <td class="border-r border-black py-2 px-1 num-font text-blue-800 font-semibold">${formatHours(calc.totActual)} h</td>
@@ -765,57 +798,121 @@ function renderVisualChart(data) {
   });
 }
 
-window.goToMonth = async function(m) {
+function flushAutoSave() {
+  clearTimeout(autoSaveTimer);
+  saveCurrentMonthToBackend(true);
+}
+
+window.goToMonth = function(m) {
   saveCurrentMonthInputsToConfigStore();
+  flushAutoSave();
   currentMonth = m;
   document.getElementById("selectMonth").value = m.toString();
   loadConfigStoreToInputs(m);
-  await loadFromBackendOrStorage(m, currentYear);
   document.getElementById("tabBtnUnified").click();
   renderUnifiedTable();
 };
 
+// Hàm áp dụng Ca Ngày cho một tháng bất kỳ (mặc định là tháng hiện tại)
+function applyDayShiftToMonth(m) {
+  const totalDays = getDaysInMonth(currentYear, m);
+  for (let d = 1; d <= totalDays; d++) {
+    const isSun = (new Date(currentYear, m - 1, d).getDay() === 0);
+    applyShiftToDay(m, d, isSun ? "off" : "day");
+  }
+  if (m === currentMonth) {
+    const elN = document.getElementById("allowanceNight");
+    if (elN) elN.value = 0;
+    const elM = document.getElementById("allowanceMealNight");
+    if (elM) elM.value = 0;
+  }
+  if (!monthlyConfigStore[m]) monthlyConfigStore[m] = getDefaultSalaryConfig(m);
+  monthlyConfigStore[m].allowanceNight = 0;
+  monthlyConfigStore[m].allowanceMealNight = 0;
+
+  localStorage.setItem(`att_${currentYear}_${m}`, JSON.stringify(monthlyStore[m]));
+  localStorage.setItem(`cfg_${currentYear}_${m}`, JSON.stringify(monthlyConfigStore[m]));
+  saveCurrentMonthInputsToConfigStore();
+  flushAutoSave();
+  renderUnifiedTable();
+  showToast(`☀️ Đã áp dụng Ca Ngày cho Tháng ${m}/${currentYear}!`);
+}
+
+// Hàm áp dụng Ca Đêm cho một tháng bất kỳ (mặc định là tháng hiện tại)
+function applyNightShiftToMonth(m) {
+  const totalDays = getDaysInMonth(currentYear, m);
+  let countNight = 0;
+  for (let d = 1; d <= totalDays; d++) {
+    const isSun = (new Date(currentYear, m - 1, d).getDay() === 0);
+    applyShiftToDay(m, d, "night");
+    if (isSun) {
+      monthlyStore[m][d].ot200 = 4;
+      monthlyStore[m][d].ot270 = 7.75;
+    }
+    countNight++;
+  }
+  const autoNight = countNight * 30000;
+  const autoMeal = countNight * 25000;
+  if (m === currentMonth) {
+    const elN = document.getElementById("allowanceNight");
+    if (elN) elN.value = autoNight;
+    const elM = document.getElementById("allowanceMealNight");
+    if (elM) elM.value = autoMeal;
+  }
+  if (!monthlyConfigStore[m]) monthlyConfigStore[m] = getDefaultSalaryConfig(m);
+  monthlyConfigStore[m].allowanceNight = autoNight;
+  monthlyConfigStore[m].allowanceMealNight = autoMeal;
+
+  localStorage.setItem(`att_${currentYear}_${m}`, JSON.stringify(monthlyStore[m]));
+  localStorage.setItem(`cfg_${currentYear}_${m}`, JSON.stringify(monthlyConfigStore[m]));
+  saveCurrentMonthInputsToConfigStore();
+  flushAutoSave();
+  renderUnifiedTable();
+  showToast(`🌙 Đã áp dụng Ca Đêm (${countNight} ca) cho Tháng ${m}/${currentYear}!`);
+}
+
 // Quick Fill Tools
 document.getElementById("btnQuickFillAllDay").addEventListener("click", () => {
-  const totalDays = getDaysInMonth(currentYear, currentMonth);
-  for (let d = 1; d <= totalDays; d++) {
-    const isSun = (new Date(currentYear, currentMonth - 1, d).getDay() === 0);
-    applyShiftToDay(currentMonth, d, isSun ? "off" : "day");
-  }
-  renderUnifiedTable();
-  triggerAutoSave();
+  applyDayShiftToMonth(currentMonth);
 });
 
 document.getElementById("btnQuickFillAllNight").addEventListener("click", () => {
-  const totalDays = getDaysInMonth(currentYear, currentMonth);
-  for (let d = 1; d <= totalDays; d++) {
-    const isSun = (new Date(currentYear, currentMonth - 1, d).getDay() === 0);
-    applyShiftToDay(currentMonth, d, "night");
-    if (isSun) {
-      monthlyStore[currentMonth][d].ot200 = 4.5;
-      monthlyStore[currentMonth][d].ot270 = 7.75;
-    }
-  }
-  document.getElementById("allowanceNight").value = 780000;
-  document.getElementById("allowanceMealNight").value = 650000;
-  renderUnifiedTable();
-  triggerAutoSave();
+  applyNightShiftToMonth(currentMonth);
 });
 
 document.getElementById("btnQuickFillRotating").addEventListener("click", () => {
   const totalDays = getDaysInMonth(currentYear, currentMonth);
+  let countNight = 0;
   for (let d = 1; d <= totalDays; d++) {
     const isSun = (new Date(currentYear, currentMonth - 1, d).getDay() === 0);
     if (d <= 15) {
       applyShiftToDay(currentMonth, d, isSun ? "off" : "day");
     } else {
-      applyShiftToDay(currentMonth, d, isSun ? "off" : "night");
+      applyShiftToDay(currentMonth, d, "night");
+      if (isSun) {
+        monthlyStore[currentMonth][d].ot200 = 4;
+        monthlyStore[currentMonth][d].ot270 = 7.75;
+      }
+      countNight++;
     }
   }
-  document.getElementById("allowanceNight").value = 390000;
-  document.getElementById("allowanceMealNight").value = 325000;
+  const autoNight = countNight * 30000;
+  const autoMeal = countNight * 25000;
+  const elN = document.getElementById("allowanceNight");
+  if (elN) elN.value = autoNight;
+  const elM = document.getElementById("allowanceMealNight");
+  if (elM) elM.value = autoMeal;
+
+  if (!monthlyConfigStore[currentMonth]) monthlyConfigStore[currentMonth] = getDefaultSalaryConfig(currentMonth);
+  monthlyConfigStore[currentMonth].allowanceNight = autoNight;
+  monthlyConfigStore[currentMonth].allowanceMealNight = autoMeal;
+
+  localStorage.setItem(`att_${currentYear}_${currentMonth}`, JSON.stringify(monthlyStore[currentMonth]));
+  localStorage.setItem(`cfg_${currentYear}_${currentMonth}`, JSON.stringify(monthlyConfigStore[currentMonth]));
+  saveCurrentMonthInputsToConfigStore();
+  flushAutoSave();
   renderUnifiedTable();
-  triggerAutoSave();
+  showToast(`🔄 Đã áp dụng Lịch xoay ca cho Tháng ${currentMonth}/${currentYear}!`);
 });
 
 document.getElementById("btnQuickClearAll").addEventListener("click", () => {
@@ -824,8 +921,10 @@ document.getElementById("btnQuickClearAll").addEventListener("click", () => {
     for (let d = 1; d <= totalDays; d++) {
       applyShiftToDay(currentMonth, d, "off");
     }
+    localStorage.setItem(`att_${currentYear}_${currentMonth}`, JSON.stringify(monthlyStore[currentMonth]));
+    saveCurrentMonthInputsToConfigStore();
+    flushAutoSave();
     renderUnifiedTable();
-    triggerAutoSave();
   }
 });
 
@@ -839,6 +938,8 @@ document.getElementById("tabBtnUnified").addEventListener("click", () => {
 });
 
 document.getElementById("tabBtnYearSummary").addEventListener("click", () => {
+  saveCurrentMonthInputsToConfigStore();
+  flushAutoSave();
   currentView = "summary";
   document.getElementById("tabBtnYearSummary").className = "py-2.5 px-4 border-b-2 font-bold text-sm transition flex items-center gap-2 border-blue-600 text-blue-600";
   document.getElementById("tabBtnUnified").className = "py-2.5 px-4 border-b-2 font-bold text-sm transition flex items-center gap-2 border-transparent text-slate-500 hover:text-slate-800";
@@ -848,20 +949,21 @@ document.getElementById("tabBtnYearSummary").addEventListener("click", () => {
 });
 
 // Month & Year changes
-document.getElementById("selectMonth").addEventListener("change", async (e) => {
+document.getElementById("selectMonth").addEventListener("change", (e) => {
   saveCurrentMonthInputsToConfigStore();
+  flushAutoSave();
   currentMonth = parseInt(e.target.value);
   loadConfigStoreToInputs(currentMonth);
-  await loadFromBackendOrStorage(currentMonth, currentYear);
   renderUnifiedTable();
 });
 
 document.getElementById("inputYear").addEventListener("change", async (e) => {
   saveCurrentMonthInputsToConfigStore();
+  flushAutoSave();
   currentYear = parseInt(e.target.value) || 2026;
   initializeDefaultData();
+  await loadAllMonthsFromBackendOrStorage(currentYear);
   loadConfigStoreToInputs(currentMonth);
-  await loadFromBackendOrStorage(currentMonth, currentYear);
   renderUnifiedTable();
 });
 
@@ -894,24 +996,28 @@ if (taxExemptToggle) {
   });
 }
 
-// Quick Sample Loaders
+// Top Bar Action Buttons: Áp dụng trực tiếp vào THÁNG ĐANG CHỌN (Không bị nhảy tháng)
 document.getElementById("btnLoadSampleDec").addEventListener("click", () => {
-  currentMonth = 12;
-  document.getElementById("selectMonth").value = "12";
-  document.getElementById("allowanceNight").value = 0;
-  document.getElementById("allowanceMealNight").value = 0;
-  document.getElementById("tabBtnUnified").click();
-  renderUnifiedTable();
+  applyDayShiftToMonth(currentMonth);
 });
 
 document.getElementById("btnLoadSampleNov").addEventListener("click", () => {
-  currentMonth = 11;
-  document.getElementById("selectMonth").value = "11";
-  document.getElementById("allowanceNight").value = 780000;
-  document.getElementById("allowanceMealNight").value = 650000;
-  document.getElementById("tabBtnUnified").click();
-  renderUnifiedTable();
+  applyNightShiftToMonth(currentMonth);
 });
+
+// Nút xem mẫu gốc T11 / T12 (Nếu có trong DOM)
+const btnNovOrigin = document.getElementById("btnLoadSampleNovOrigin");
+if (btnNovOrigin) {
+  btnNovOrigin.addEventListener("click", () => {
+    goToMonth(11);
+  });
+}
+const btnDecOrigin = document.getElementById("btnLoadSampleDecOrigin");
+if (btnDecOrigin) {
+  btnDecOrigin.addEventListener("click", () => {
+    goToMonth(12);
+  });
+}
 
 document.getElementById("btnResetData").addEventListener("click", () => {
   if (confirm("Bạn có chắc chắn muốn làm mới toàn bộ số liệu cả 12 tháng về mặc định?")) {
@@ -1169,6 +1275,76 @@ async function checkBackendStatus() {
   return false;
 }
 
+function normalizeConfig(cfg) {
+  if (!cfg) return null;
+  return {
+    baseSalary: cfg.base_salary !== undefined ? cfg.base_salary : (cfg.baseSalary !== undefined ? cfg.baseSalary : 6300000),
+    positionAllowance: cfg.pos_allowance !== undefined ? cfg.pos_allowance : (cfg.positionAllowance !== undefined ? cfg.positionAllowance : 2450000),
+    seniorityAllowance: cfg.sen_allowance !== undefined ? cfg.sen_allowance : (cfg.seniorityAllowance !== undefined ? cfg.seniorityAllowance : 100000),
+    kpiCoeff: cfg.kpi_coeff !== undefined ? cfg.kpi_coeff : (cfg.kpiCoeff !== undefined ? cfg.kpiCoeff : 1.0),
+    allowanceGas: cfg.allowance_gas !== undefined ? cfg.allowance_gas : (cfg.allowanceGas !== undefined ? cfg.allowanceGas : 500000),
+    allowanceHouse: cfg.allowance_house !== undefined ? cfg.allowance_house : (cfg.allowanceHouse !== undefined ? cfg.allowanceHouse : 500000),
+    allowanceChild: cfg.allowance_child !== undefined ? cfg.allowance_child : (cfg.allowanceChild !== undefined ? cfg.allowanceChild : 0),
+    allowanceSafety: cfg.allowance_safety !== undefined ? cfg.allowance_safety : (cfg.allowanceSafety !== undefined ? cfg.allowanceSafety : 0),
+    allowanceNight: cfg.allowance_night !== undefined ? cfg.allowance_night : (cfg.allowanceNight !== undefined ? cfg.allowanceNight : 0),
+    allowanceMealNight: cfg.allowance_meal_night !== undefined ? cfg.allowance_meal_night : (cfg.allowanceMealNight !== undefined ? cfg.allowanceMealNight : 0),
+    allowancePeriod: cfg.allowance_period !== undefined ? cfg.allowance_period : (cfg.allowancePeriod !== undefined ? cfg.allowancePeriod : 0),
+    allowanceOther: cfg.allowance_other !== undefined ? cfg.allowance_other : (cfg.allowanceOther !== undefined ? cfg.allowanceOther : 0),
+    bonusAttendance: cfg.bonus_attendance !== undefined ? cfg.bonus_attendance : (cfg.bonusAttendance !== undefined ? cfg.bonusAttendance : 600000),
+    bonusKPI: cfg.bonus_kpi !== undefined ? cfg.bonus_kpi : (cfg.bonusKPI !== undefined ? cfg.bonusKPI : 3050000),
+    isTaxExempt: cfg.is_tax_exempt !== undefined ? cfg.is_tax_exempt : (cfg.isTaxExempt !== undefined ? cfg.isTaxExempt : 1),
+    bankAccount: cfg.bank_account || cfg.bankAccount || "STK: 102884878810",
+    bankName: cfg.bank_name || cfg.bankName || "VietinBank"
+  };
+}
+
+async function loadAllMonthsFromBackendOrStorage(year) {
+  if (isBackendConnected) {
+    try {
+      // 1. Tải toàn bộ chấm công 12 tháng từ CSDL
+      const resp = await fetch(`${API_BASE}/api/attendance/${year}`);
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.months) {
+          for (let m = 1; m <= 12; m++) {
+            if (data.months[m] && Object.keys(data.months[m]).length > 0) {
+              monthlyStore[m] = data.months[m];
+              localStorage.setItem(`att_${year}_${m}`, JSON.stringify(monthlyStore[m]));
+            }
+          }
+        }
+      }
+      // 2. Tải toàn bộ cấu hình lương 12 tháng từ CSDL
+      const cfgResp = await fetch(`${API_BASE}/api/config/${year}`);
+      if (cfgResp.ok) {
+        const data = await cfgResp.json();
+        if (data.configs) {
+          for (let m = 1; m <= 12; m++) {
+            if (data.configs[m]) {
+              monthlyConfigStore[m] = normalizeConfig(data.configs[m]);
+              localStorage.setItem(`cfg_${year}_${m}`, JSON.stringify(monthlyConfigStore[m]));
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Lỗi tải toàn bộ năm từ backend, dùng localStorage:", e);
+    }
+  } else {
+    // Chế độ Offline: Đồng bộ từ localStorage của toàn bộ 12 tháng
+    for (let m = 1; m <= 12; m++) {
+      const sAtt = localStorage.getItem(`att_${year}_${m}`);
+      if (sAtt) {
+        try { monthlyStore[m] = JSON.parse(sAtt); } catch(e){}
+      }
+      const sCfg = localStorage.getItem(`cfg_${year}_${m}`);
+      if (sCfg) {
+        try { monthlyConfigStore[m] = normalizeConfig(JSON.parse(sCfg)); } catch(e){}
+      }
+    }
+  }
+}
+
 async function loadFromBackendOrStorage(month, year) {
   if (isBackendConnected) {
     try {
@@ -1178,6 +1354,7 @@ async function loadFromBackendOrStorage(month, year) {
         const attData = await attResp.json();
         if (attData.days && Object.keys(attData.days).length > 0) {
           monthlyStore[month] = attData.days;
+          localStorage.setItem(`att_${year}_${month}`, JSON.stringify(monthlyStore[month]));
         }
       }
 
@@ -1186,6 +1363,8 @@ async function loadFromBackendOrStorage(month, year) {
       if (cfgResp.ok) {
         const cfg = await cfgResp.json();
         applyConfigToInputs(cfg);
+        monthlyConfigStore[month] = normalizeConfig(cfg);
+        localStorage.setItem(`cfg_${year}_${month}`, JSON.stringify(monthlyConfigStore[month]));
       }
     } catch (e) {
       console.warn("Lỗi tải từ backend, dùng bộ nhớ cục bộ:", e);
@@ -1198,7 +1377,11 @@ async function loadFromBackendOrStorage(month, year) {
     }
     const localCfg = localStorage.getItem(`cfg_${year}_${month}`);
     if (localCfg) {
-      try { applyConfigToInputs(JSON.parse(localCfg)); } catch(e){}
+      try {
+        const parsed = JSON.parse(localCfg);
+        applyConfigToInputs(parsed);
+        monthlyConfigStore[month] = normalizeConfig(parsed);
+      } catch(e){}
     }
   }
 }
@@ -1513,7 +1696,11 @@ document.getElementById("btnSaveToDB").addEventListener("click", () => {
 window.addEventListener("DOMContentLoaded", async () => {
   initializeDefaultData();
   await checkBackendStatus();
+  // Nạp toàn bộ 12 tháng từ CSDL SQLite hoặc localStorage để bảo toàn dữ liệu người dùng
+  await loadAllMonthsFromBackendOrStorage(currentYear);
+  // Nạp dữ liệu và cấu hình tháng hiện tại
   await loadFromBackendOrStorage(currentMonth, currentYear);
+  loadConfigStoreToInputs(currentMonth);
   await initGDriveUI();
   renderUnifiedTable();
 });
