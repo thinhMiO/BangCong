@@ -800,7 +800,9 @@ function renderVisualChart(data) {
 
 function flushAutoSave() {
   clearTimeout(autoSaveTimer);
+  if (typeof firebaseSyncTimer !== "undefined") clearTimeout(firebaseSyncTimer);
   saveCurrentMonthToBackend(true);
+  if (typeof pushToFirebase === "function") pushToFirebase(true);
 }
 
 window.goToMonth = function(m) {
@@ -1196,19 +1198,6 @@ function buildExportWorkbook() {
   return wb;
 }
 
-// Lấy Base64 của file Excel .xlsx
-function getExportExcelBase64() {
-  try {
-    if (typeof XLSX === "undefined") return null;
-    const wb = buildExportWorkbook();
-    if (!wb) return null;
-    return XLSX.write(wb, { bookType: "xlsx", type: "base64" });
-  } catch(e) {
-    console.error("Lỗi tạo base64 Excel:", e);
-    return null;
-  }
-}
-
 // Direct Export Excel with SheetJS
 document.getElementById("btnExportExcel").addEventListener("click", () => {
   if (typeof XLSX === "undefined") {
@@ -1486,221 +1475,182 @@ function triggerAutoSave() {
   clearTimeout(autoSaveTimer);
   autoSaveTimer = setTimeout(() => {
     saveCurrentMonthToBackend(true);
-  }, 1200);
+    // Tự động đồng bộ ngay lập tức lên Firebase Realtime Cloud
+    if (typeof triggerFirebaseAutoSync === "function") triggerFirebaseAutoSync();
+  }, 1000);
 }
-
-// ========================================================
-// GOOGLE DRIVE AUTO-BACKUP WEBHOOK INTEGRATION
-// Tự động xuất file Excel .xlsx và ghi đè vào đúng 1 file duy nhất
-// ========================================================
-const APPS_SCRIPT_TEMPLATE = `function doPost(e) {
-  try {
-    var rawData = e.postData.contents;
-    var payload = JSON.parse(rawData);
-    var fileName = payload.file_name || "Bang_Cham_Cong_Tu_Dong.xlsx";
-    var excelBase64 = payload.excel_base64;
-    
-    var blob;
-    if (excelBase64) {
-      // 1. Giải mã Base64 thành file Excel (.xlsx) chuẩn
-      var bytes = Utilities.base64Decode(excelBase64);
-      blob = Utilities.newBlob(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
-    } else {
-      // Dữ liệu JSON dự phòng nếu không có base64
-      blob = Utilities.newBlob(rawData, "application/json", "Bang_Cham_Cong_Backup.json");
-    }
-
-    // 2. Tìm và xóa bản cũ để LUÔN DUY TRÌ ĐÚNG 1 FILE DUY NHẤT TRÊN DRIVE
-    var files = DriveApp.getFilesByName(fileName);
-    while (files.hasNext()) {
-      var oldFile = files.next();
-      oldFile.setTrashed(true);
-    }
-
-    // 3. Tạo file Excel mới nhất lưu vào Google Drive
-    var targetFile = DriveApp.createFile(blob);
-
-    return ContentService.createTextOutput(JSON.stringify({
-      status: "success",
-      message: "Đã cập nhật file Excel duy nhất: " + fileName,
-      fileId: targetFile.getId(),
-      updatedAt: new Date().toISOString()
-    })).setMimeType(ContentService.MimeType.JSON);
-
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({
-      status: "error",
-      message: err.toString()
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-function doGet(e) {
-  return ContentService.createTextOutput(JSON.stringify({
-    status: "online",
-    message: "Google Drive Auto-Backup Excel Webhook đang hoạt động."
-  })).setMimeType(ContentService.MimeType.JSON);
-};`;
-
-let gdriveWebhookUrl = "";
-
-async function initGDriveUI() {
-  const codeEl = document.getElementById("appsScriptCodeBlock");
-  if (codeEl) codeEl.innerText = APPS_SCRIPT_TEMPLATE;
-
-  // Load saved Webhook URL from backend or localStorage
-  if (isBackendConnected) {
-    try {
-      const resp = await fetch(`${API_BASE}/api/settings/gdrive`);
-      if (resp.ok) {
-        const data = await resp.json();
-        gdriveWebhookUrl = data.webhook_url || "";
-        updateGDriveBadge(gdriveWebhookUrl, data.last_sync);
-      }
-    } catch(e) {}
-  } else {
-    gdriveWebhookUrl = localStorage.getItem("gdrive_webhook_url") || "";
-    const lastSync = localStorage.getItem("gdrive_last_sync");
-    updateGDriveBadge(gdriveWebhookUrl, lastSync);
-  }
-
-  const inputEl = document.getElementById("inputGDriveWebhookUrl");
-  if (inputEl) inputEl.value = gdriveWebhookUrl;
-}
-
-function updateGDriveBadge(url, lastSync) {
-  const badgeText = document.getElementById("gdriveStatusText");
-  const lastSyncLabel = document.getElementById("gdriveLastSyncLabel");
-  if (!badgeText) return;
-
-  if (url && url.startsWith("http")) {
-    badgeText.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 inline-block mr-1"></span> GDrive (Tự động)`;
-    if (lastSyncLabel) {
-      if (lastSync) {
-        const d = new Date(lastSync);
-        lastSyncLabel.innerText = `Đã đồng bộ: ${d.toLocaleTimeString("vi-VN")} ${d.toLocaleDateString("vi-VN")}`;
-      } else {
-        lastSyncLabel.innerText = "Đã kết nối Webhook";
-      }
-    }
-  } else {
-    badgeText.innerText = "Google Drive";
-    if (lastSyncLabel) lastSyncLabel.innerText = "Chưa kết nối";
-  }
-}
-
-// Modal open/close
-const modalEl = document.getElementById("gdriveModal");
-document.getElementById("btnOpenGDriveModal").addEventListener("click", () => {
-  if (modalEl) {
-    modalEl.classList.remove("hidden");
-    document.getElementById("inputGDriveWebhookUrl").value = gdriveWebhookUrl;
-  }
-});
-
-const closeModal = () => { if (modalEl) modalEl.classList.add("hidden"); };
-document.getElementById("btnCloseGDriveModal").addEventListener("click", closeModal);
-document.getElementById("btnCancelGDriveModal").addEventListener("click", closeModal);
-
-// Copy script button
-document.getElementById("btnCopyAppsScript").addEventListener("click", () => {
-  navigator.clipboard.writeText(APPS_SCRIPT_TEMPLATE).then(() => {
-    showToast("Đã sao chép mã Google Apps Script vào bộ nhớ tạm!");
-  }).catch(() => {
-    showToast("Vui lòng bôi đen và copy trực tiếp khung mã bên dưới", "info");
-  });
-});
-
-// Save Webhook URL
-document.getElementById("btnSaveGDriveUrl").addEventListener("click", async () => {
-  const url = document.getElementById("inputGDriveWebhookUrl").value.trim();
-  gdriveWebhookUrl = url;
-  localStorage.setItem("gdrive_webhook_url", url);
-
-  if (isBackendConnected) {
-    try {
-      const resp = await fetch(`${API_BASE}/api/settings/gdrive`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ webhook_url: url })
-      });
-      if (resp.ok) {
-        showToast("Đã lưu cấu hình Google Drive Webhook!");
-        updateGDriveBadge(url, new Date().toISOString());
-        closeModal();
-        return;
-      }
-    } catch(e) {}
-  }
-
-  showToast("Đã lưu cấu hình vào trình duyệt (Offline)");
-  updateGDriveBadge(url, null);
-  closeModal();
-});
-
-// Test / Manual Sync
-document.getElementById("btnTestSyncGDrive").addEventListener("click", async () => {
-  const url = document.getElementById("inputGDriveWebhookUrl").value.trim() || gdriveWebhookUrl;
-  if (!url || !url.startsWith("http")) {
-    alert("Vui lòng nhập đường link Google Web App URL hợp lệ trước.");
-    return;
-  }
-
-  showToast("Đang gửi dữ liệu sao lưu lên Google Drive...", "info");
-
-  if (isBackendConnected) {
-    try {
-      // First save URL if changed
-      await fetch(`${API_BASE}/api/settings/gdrive`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ webhook_url: url })
-      });
-      await fetch(`${API_BASE}/api/sync-gdrive`, { method: "POST" });
-      showToast("✅ Đã gửi lệnh đồng bộ lên Google Drive (chỉ 1 file duy nhất)!");
-      updateGDriveBadge(url, new Date().toISOString());
-      return;
-    } catch(e) {}
-  }
-
-  // Frontend direct sync fallback
-  try {
-    const excelBase64 = getExportExcelBase64();
-    const payload = {
-      source: "BangCongWebDirect",
-      export_time: new Date().toISOString(),
-      file_name: "Bang_Cham_Cong_Tu_Dong.xlsx",
-      excel_base64: excelBase64,
-      monthlyStore: monthlyStore
-    };
-    await fetch(url, {
-      method: "POST",
-      mode: "no-cors",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    localStorage.setItem("gdrive_last_sync", new Date().toISOString());
-    updateGDriveBadge(url, new Date().toISOString());
-    showToast("✅ Đã xuất và gửi file Excel (.xlsx) lên Google Drive thành công!");
-  } catch(e) {
-    showToast("Có lỗi khi kết nối Google Drive, vui lòng kiểm tra lại URL", "info");
-  }
-});
 
 // Button "Lưu CSDL"
 document.getElementById("btnSaveToDB").addEventListener("click", () => {
   saveCurrentMonthToBackend(false);
 });
 
+// ========================================================
+// FIREBASE REALTIME CLOUD SYNC (TỰ ĐỘNG ĐỒNG BỘ MÁY TÍNH & ĐIỆN THOẠI)
+// ========================================================
+const FIREBASE_DB_URL = "https://bangcong-463ae-default-rtdb.firebaseio.com/bangcong_data.json";
+
+let firebaseSyncTimer = null;
+let firebaseEventSource = null;
+
+function updateCloudBadge(online, text) {
+  const badge = document.getElementById("backendStatusBadge");
+  if (!badge) return;
+  if (online) {
+    badge.className = "inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-2xs";
+    badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> ${text || "Firebase Realtime (Tự động)"}`;
+  } else {
+    badge.className = "inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-300";
+    badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500"></span> ${text || "Chế độ Offline (Chưa kết nối Cloud)"}`;
+  }
+}
+
+async function pushToFirebase(silent = false) {
+  try {
+    saveCurrentMonthInputsToConfigStore();
+    const payload = {
+      updatedAt: Date.now(),
+      year: currentYear,
+      attendance: monthlyStore,
+      configs: monthlyConfigStore
+    };
+
+    const resp = await fetch(FIREBASE_DB_URL, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (resp.ok) {
+      localStorage.setItem("firebase_last_push_time", payload.updatedAt.toString());
+      updateCloudBadge(true, "Firebase Realtime (Đồng bộ tức thì)");
+      if (!silent) showToast("☁️ Đã đồng bộ lên Firebase Cloud thành công!");
+      return true;
+    }
+  } catch (err) {
+    console.warn("Lỗi push Firebase:", err);
+    updateCloudBadge(false, "Chế độ Offline");
+    if (!silent) showToast("Không thể kết nối Firebase Cloud, dữ liệu đã lưu trong máy", "info");
+  }
+  return false;
+}
+
+async function pullFromFirebase(silent = false) {
+  try {
+    const resp = await fetch(`${FIREBASE_DB_URL}?nocache=${Date.now()}`);
+    if (!resp.ok) return false;
+
+    const data = await resp.json();
+    if (!data) {
+      // Cơ sở dữ liệu Firebase vừa tạo chưa có dữ liệu -> Đẩy dữ liệu hiện tại lên để khởi tạo!
+      await pushToFirebase(true);
+      updateCloudBadge(true, "Firebase Realtime (Đồng bộ tức thì)");
+      return true;
+    }
+
+    if (data.attendance) {
+      for (let m = 1; m <= 12; m++) {
+        if (data.attendance[m] && Object.keys(data.attendance[m]).length > 0) {
+          monthlyStore[m] = data.attendance[m];
+          localStorage.setItem(`att_${data.year || currentYear}_${m}`, JSON.stringify(monthlyStore[m]));
+        }
+      }
+    }
+    if (data.configs) {
+      for (let m = 1; m <= 12; m++) {
+        if (data.configs[m]) {
+          monthlyConfigStore[m] = normalizeConfig(data.configs[m]);
+          localStorage.setItem(`cfg_${data.year || currentYear}_${m}`, JSON.stringify(monthlyConfigStore[m]));
+        }
+      }
+    }
+
+    localStorage.setItem("firebase_last_push_time", (data.updatedAt || Date.now()).toString());
+    loadConfigStoreToInputs(currentMonth);
+    renderUnifiedTable();
+    updateCloudBadge(true, "Firebase Realtime (Đồng bộ tức thì)");
+    if (!silent) showToast("✅ Đã đồng bộ dữ liệu mới nhất từ Firebase Cloud!");
+    return true;
+
+  } catch (err) {
+    console.warn("Lỗi pull Firebase:", err);
+    updateCloudBadge(false, "Chế độ Offline");
+  }
+  return false;
+}
+
+function triggerFirebaseAutoSync() {
+  clearTimeout(firebaseSyncTimer);
+  firebaseSyncTimer = setTimeout(() => {
+    pushToFirebase(true);
+  }, 1000); // 1 giây sau lần sửa cuối là tự đẩy lên Cloud
+}
+
+// Lắng nghe sự thay đổi theo thời gian thực (Realtime Server-Sent Events)
+function listenFirebaseRealtime() {
+  try {
+    if (firebaseEventSource) firebaseEventSource.close();
+    firebaseEventSource = new EventSource(FIREBASE_DB_URL);
+    firebaseEventSource.addEventListener("put", (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg && msg.path === "/" && msg.data) {
+          const cloud = msg.data;
+          const myLastPush = parseInt(localStorage.getItem("firebase_last_push_time") || "0");
+          // Nếu thay đổi đến từ thiết bị khác (chênh lệch thời gian trên 1500ms)
+          if (cloud.updatedAt && Math.abs(cloud.updatedAt - myLastPush) > 1500) {
+            if (cloud.attendance) {
+              for (let m = 1; m <= 12; m++) {
+                if (cloud.attendance[m]) {
+                  monthlyStore[m] = cloud.attendance[m];
+                  localStorage.setItem(`att_${cloud.year || currentYear}_${m}`, JSON.stringify(monthlyStore[m]));
+                }
+              }
+            }
+            if (cloud.configs) {
+              for (let m = 1; m <= 12; m++) {
+                if (cloud.configs[m]) {
+                  monthlyConfigStore[m] = normalizeConfig(cloud.configs[m]);
+                  localStorage.setItem(`cfg_${cloud.year || currentYear}_${m}`, JSON.stringify(monthlyConfigStore[m]));
+                }
+              }
+            }
+            loadConfigStoreToInputs(currentMonth);
+            renderUnifiedTable();
+            showToast("⚡ Dữ liệu vừa được cập nhật từ thiết bị khác!");
+          }
+        }
+      } catch(err) {}
+    });
+    firebaseEventSource.onopen = () => {
+      updateCloudBadge(true, "Firebase Realtime (Đồng bộ tức thì)");
+    };
+    firebaseEventSource.onerror = () => {
+      // Tự động kết nối lại ngầm
+    };
+  } catch (err) {}
+}
+
 // Khởi chạy khi tải trang
 window.addEventListener("DOMContentLoaded", async () => {
   initializeDefaultData();
   await checkBackendStatus();
-  // Nạp toàn bộ 12 tháng từ CSDL SQLite hoặc localStorage để bảo toàn dữ liệu người dùng
+  // 1. Nạp từ localStorage để hiển thị tức thì 0 giây
   await loadAllMonthsFromBackendOrStorage(currentYear);
-  // Nạp dữ liệu và cấu hình tháng hiện tại
   await loadFromBackendOrStorage(currentMonth, currentYear);
   loadConfigStoreToInputs(currentMonth);
-  await initGDriveUI();
   renderUnifiedTable();
+
+  // 2. Tự động đồng bộ 2 chiều với Firebase Realtime Cloud (Máy tính ↔ Điện thoại)
+  await pullFromFirebase(true);
+  listenFirebaseRealtime();
+
+  // 3. Nút bấm "Đồng bộ Cloud" thủ công
+  const btnManual = document.getElementById("btnManualSyncCloud");
+  if (btnManual) {
+    btnManual.addEventListener("click", async () => {
+      showToast("⏳ Đang đồng bộ với Firebase Cloud...", "info");
+      await pushToFirebase(false);
+    });
+  }
 });

@@ -131,7 +131,7 @@
         </h1>
         <div class="flex flex-wrap items-center gap-2 mt-1">
           <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-            <i class="fa-solid fa-toggle-on"></i> Tích chọn Ca Ngày / Ca Đêm $\rightarrow$ Tự động điền giờ & OT 
+            <i class="fa-solid fa-toggle-on"></i> Tích chọn Ca Ngày / Ca Đêm $\rightarrow$ Tự động điền giờ & OT (Vẫn sửa tay được)
           </span>
           <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
             <i class="fa-solid fa-layer-group"></i> Gộp Ca Ngày & Đêm + Thống kê 12 tháng
@@ -144,20 +144,19 @@
 
       <!-- Quick Action Buttons & Backend Status -->
       <div class="flex flex-wrap items-center gap-2">
-        <!-- Backend Status Indicator -->
-        <span id="backendStatusBadge" class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-700 border border-slate-300" title="Trạng thái kết nối CSDL Backend">
-          <span class="w-2 h-2 rounded-full bg-slate-400 animate-pulse"></span> Đang kết nối...
+        <!-- Cloud Status Indicator -->
+        <span id="backendStatusBadge" class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-300" title="Trạng thái đồng bộ tự động giữa Máy tính & Điện thoại">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Firebase Realtime (Đồng bộ tức thì)
         </span>
+
+        <!-- Cloud Manual Sync Button -->
+        <button id="btnManualSyncCloud" class="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-xs md:text-sm rounded-lg font-medium shadow-sm transition flex items-center gap-1.5" title="Đồng bộ ngay dữ liệu 2 chiều giữa Máy tính & Điện thoại qua Firebase">
+          <i class="fa-solid fa-cloud-arrow-up"></i> Đồng bộ Cloud
+        </button>
 
         <!-- Save to Backend DB button -->
         <button id="btnSaveToDB" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs md:text-sm rounded-lg font-medium shadow-sm transition flex items-center gap-1.5" title="Lưu toàn bộ số liệu tháng hiện tại vào CSDL SQLite">
           <i class="fa-solid fa-floppy-disk"></i> Lưu CSDL
-        </button>
-
-        <!-- Google Drive Backup Button -->
-        <button id="btnOpenGDriveModal" class="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 text-xs md:text-sm rounded-lg font-medium shadow-2xs transition flex items-center gap-1.5 border border-sky-300" title="Cấu hình tự động sao lưu về Google Drive (1 file duy nhất)">
-          <i class="fa-brands fa-google-drive text-amber-500 text-sm"></i>
-          <span id="gdriveStatusText">Google Drive</span>
         </button>
 
         <button id="btnLoadSampleDec" title="Điền toàn bộ lịch Ca Ngày vào tháng đang chọn" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs md:text-sm rounded-lg font-medium shadow-sm transition flex items-center gap-1.5">
@@ -262,7 +261,7 @@
       <!-- Title Yellow Banners -->
       <div class="grid grid-cols-1 xl:grid-cols-12 gap-0 border-x border-b border-black">
         <div class="xl:col-span-7 bg-yellow-banner py-2 text-center font-bold text-sm md:text-base border-b xl:border-b-0 xl:border-r border-black tracking-wide uppercase">
-          BẢNG CHẤM CÔNG TỔNG HỢP
+          BẢNG CHẤM CÔNG TỔNG HỢP (TỰ ĐỘNG THEO CA + VẪN SỬA ĐƯỢC)
         </div>
         <div class="xl:col-span-5 bg-yellow-banner py-2 text-center font-bold text-sm md:text-base tracking-wide uppercase flex items-center justify-center gap-2">
           <span>BẢNG CHUẨN TIỀN & TÍNH LƯƠNG ĐẦY ĐỦ PHỤ CẤP</span>
@@ -860,101 +859,10 @@
     Bảng Chấm Công & Tính Lương Tự Động • Chọn Ca Thông Minh • Đầy Đủ Phụ Cấp Ca Đêm & Ăn Ca • Thống Kê 12 Tháng.
   </footer>
 
-  <!-- GOOGLE DRIVE SYNC MODAL -->
-  <div id="gdriveModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-3">
-    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in duration-200">
-      
-      <!-- Modal Header -->
-      <div class="bg-gradient-to-r from-sky-600 to-blue-700 text-white p-4 flex items-center justify-between">
-        <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
-            <i class="fa-brands fa-google-drive text-amber-300 text-lg"></i>
-          </div>
-          <div>
-            <h3 class="font-bold text-base md:text-lg">Tự Động Xuất File Excel (.xlsx) Lên Google Drive</h3>
-            <p class="text-xs text-sky-100">Ghi đè tự động vào 1 file Excel duy nhất: <code class="bg-white/20 px-1 py-0.2 rounded font-mono font-bold text-yellow-200">Bang_Cham_Cong_Tu_Dong.xlsx</code></p>
-          </div>
-        </div>
-        <button id="btnCloseGDriveModal" class="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition text-lg">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </div>
-
-      <!-- Modal Body -->
-      <div class="p-5 overflow-y-auto space-y-4 text-xs md:text-sm text-slate-700">
-        
-        <!-- Highlight Notice -->
-        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-emerald-900 flex items-start gap-2.5 text-xs">
-          <i class="fa-solid fa-file-excel text-emerald-600 mt-0.5 text-base"></i>
-          <div>
-            <strong class="font-bold text-emerald-950">Đặc điểm xuất file Excel:</strong>
-            Mỗi khi bạn chấm công, đổi ca hay sửa lương, hệ thống sẽ tự động tạo file Excel chuẩn <strong>.xlsx</strong> gồm đầy đủ 2 Sheet (Bảng Chấm Công & Tính Lương + Bảng Thống Kê 12 Tháng) và cập nhật ghi đè vào <strong>đúng 1 file duy nhất</strong> trên tài khoản Google Drive của bạn. Bạn có thể mở xem trực tiếp trên Google Sheets bằng điện thoại hoặc tải về máy tính bất cứ lúc nào!
-          </div>
-        </div>
-
-        <!-- Setup Guide Steps -->
-        <div class="space-y-2">
-          <div class="font-bold text-slate-900 text-sm flex items-center justify-between">
-            <span>📋 Hướng dẫn kết nối 3 bước (Chỉ làm 1 lần duy nhất):</span>
-            <button id="btnCopyAppsScript" class="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 px-2.5 py-1 rounded-md font-semibold transition flex items-center gap-1">
-              <i class="fa-regular fa-copy"></i> Sao chép mã Script
-            </button>
-          </div>
-          
-          <ol class="list-decimal list-inside space-y-1.5 text-xs text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-200">
-            <li>Truy cập <a href="https://script.google.com/home/start" target="_blank" class="text-blue-600 font-bold underline">script.google.com</a> bằng tài khoản Google của bạn $\rightarrow$ bấm <strong>Dự án mới (New Project)</strong>.</li>
-            <li>Xóa hết nội dung cũ, dán đoạn mã bên dưới vào $\rightarrow$ bấm nút <strong>Lưu (Ctrl + S)</strong>.</li>
-            <li>Bấm <strong>Triển khai (Deploy)</strong> $\rightarrow$ <strong>Tùy chọn triển khai mới (New deployment)</strong>:
-              <ul class="list-disc list-inside ml-4 mt-0.5 space-y-0.5 text-slate-500">
-                <li>Loại triển khai: Chọn <strong>Ứng dụng web (Web app)</strong> (biểu tượng bánh răng).</li>
-                <li>Thực thi dưới dạng: <strong>Tôi (Me)</strong>.</li>
-                <li>Ai có quyền truy cập: <strong>Bất kỳ ai (Anyone)</strong>.</li>
-              </ul>
-            </li>
-            <li>Bấm <strong>Triển khai</strong> và sao chép đường link <strong>Web App URL</strong> dán vào ô bên dưới.</li>
-          </ol>
-        </div>
-
-        <!-- Collapsible Script Code -->
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">Mã nguồn Google Apps Script (Sẵn sàng sử dụng):</label>
-          <pre id="appsScriptCodeBlock" class="bg-slate-900 text-slate-100 p-3 rounded-lg text-[11px] font-mono overflow-x-auto max-h-36 border border-slate-700 select-all"></pre>
-        </div>
-
-        <!-- Webhook URL Input -->
-        <div class="space-y-1.5 pt-1">
-          <label class="block text-xs font-bold text-slate-800 flex items-center justify-between">
-            <span>Đường link Google Web App URL của bạn:</span>
-            <span id="gdriveLastSyncLabel" class="text-[11px] font-normal text-slate-500">Chưa đồng bộ</span>
-          </label>
-          <input type="url" id="inputGDriveWebhookUrl" placeholder="https://script.google.com/macros/s/AKfycb.../exec" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
-          <p class="text-[11px] text-slate-400">Dán link dạng <code class="text-slate-600">https://script.google.com/macros/s/.../exec</code> nhận được từ Google.</p>
-        </div>
-
-      </div>
-
-      <!-- Modal Footer -->
-      <div class="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
-        <button id="btnTestSyncGDrive" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs md:text-sm rounded-lg font-semibold transition flex items-center gap-1.5">
-          <i class="fa-solid fa-arrows-rotate"></i> Kiểm tra & Đồng bộ ngay
-        </button>
-        <div class="flex items-center gap-2">
-          <button id="btnCancelGDriveModal" class="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 text-xs md:text-sm rounded-lg font-medium border border-slate-300 transition">
-            Đóng
-          </button>
-          <button id="btnSaveGDriveUrl" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs md:text-sm rounded-lg font-semibold shadow-sm transition flex items-center gap-1.5">
-            <i class="fa-solid fa-check"></i> Lưu Cấu Hình
-          </button>
-        </div>
-      </div>
-
-    </div>
-  </div>
-
   <!-- TOAST NOTIFICATION CONTAINER -->
   <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
   <!-- SCRIPT (Thêm version để chống kẹt cache trình duyệt khi deploy) -->
-  <script src="app.js?v=20261117_v4"></script>
+  <script src="app.js?v=20261117_v9"></script>
 </body>
 </html>
