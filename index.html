@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15,35 +16,44 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap');
+
     body {
       font-family: 'Roboto', sans-serif;
       background-color: #f1f5f9;
     }
+
     .num-font {
       font-family: 'JetBrains Mono', monospace;
     }
+
     .bg-cyan-banner {
       background-color: #00E5FF;
     }
+
     .bg-yellow-banner {
       background-color: #FFFF00;
     }
+
     .bg-blue-header {
       background-color: #2E75B6;
     }
+
     .bg-green-highlight {
       background-color: #00B050 !important;
       color: #ffffff !important;
       font-weight: bold;
     }
+
     .bg-green-highlight input {
       color: #ffffff !important;
       font-weight: bold;
       background: transparent !important;
     }
+
     .bg-green-total {
       background-color: #00B050;
     }
+
     .table-input {
       width: 100%;
       height: 100%;
@@ -54,9 +64,11 @@
       padding: 3px 2px;
       font-size: 0.82rem;
     }
+
     .table-input:focus {
       background-color: #e0f2fe;
     }
+
     .auto-badge {
       font-size: 9px;
       padding: 1px 4px;
@@ -66,14 +78,17 @@
       font-weight: 600;
       display: inline-block;
     }
-    input[type=number]::-webkit-inner-spin-button, 
-    input[type=number]::-webkit-outer-spin-button { 
-      -webkit-appearance: none; 
-      margin: 0; 
+
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
     }
+
     input[type=number] {
       -moz-appearance: textfield;
     }
+
     /* Shift selection buttons */
     .shift-btn {
       font-size: 10px;
@@ -83,35 +98,42 @@
       transition: all 0.15s ease;
       cursor: pointer;
     }
+
     .shift-day-active {
       background-color: #fef08a;
       color: #854d0e;
       border: 1px solid #ca8a04;
     }
+
     .shift-night-active {
       background-color: #e0e7ff;
       color: #3730a3;
       border: 1px solid #6366f1;
     }
+
     .shift-off-active {
       background-color: #f1f5f9;
       color: #64748b;
       border: 1px solid #cbd5e1;
     }
+
     @media print {
       .no-print {
         display: none !important;
       }
+
       body {
         background-color: white;
         padding: 0;
       }
+
       .print-container {
         box-shadow: none !important;
         border: none !important;
         width: 100% !important;
         max-width: 100% !important;
       }
+
       @page {
         size: A4 landscape;
         margin: 5mm;
@@ -119,6 +141,7 @@
     }
   </style>
 </head>
+
 <body class="text-slate-800 antialiased p-2 md:p-5 min-h-screen flex flex-col">
 
   <!-- TOP BAR / CONTROLS (NO PRINT) -->
@@ -130,13 +153,17 @@
           HỆ THỐNG BẢNG CHẤM CÔNG & TÍNH LƯƠNG TỰ ĐỘNG
         </h1>
         <div class="flex flex-wrap items-center gap-2 mt-1">
-          <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-            <i class="fa-solid fa-toggle-on"></i> Tích chọn Ca Ngày / Ca Đêm $\rightarrow$ Tự động điền giờ & OT (Vẫn sửa tay được)
+          <span
+            class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+            <i class="fa-solid fa-toggle-on"></i> Tích chọn Ca Ngày / Ca Đêm $\rightarrow$ Tự động điền giờ & OT (Vẫn
+            sửa tay được)
           </span>
-          <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+          <span
+            class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
             <i class="fa-solid fa-layer-group"></i> Gộp Ca Ngày & Đêm + Thống kê 12 tháng
           </span>
-          <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+          <span
+            class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
             <i class="fa-solid fa-receipt"></i> Đầy đủ các khoản phụ cấp ca đêm, ăn ca, con nhỏ...
           </span>
         </div>
@@ -145,33 +172,49 @@
       <!-- Quick Action Buttons & Backend Status -->
       <div class="flex flex-wrap items-center gap-2">
         <!-- Cloud Status Indicator -->
-        <span id="backendStatusBadge" class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-300" title="Trạng thái đồng bộ tự động giữa Máy tính & Điện thoại">
+        <span id="backendStatusBadge"
+          class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-300"
+          title="Trạng thái đồng bộ tự động giữa Máy tính & Điện thoại">
           <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Firebase Realtime (Đồng bộ tức thì)
         </span>
 
         <!-- Cloud Manual Sync Button -->
-        <button id="btnManualSyncCloud" class="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-xs md:text-sm rounded-lg font-medium shadow-sm transition flex items-center gap-1.5" title="Đồng bộ ngay dữ liệu 2 chiều giữa Máy tính & Điện thoại qua Firebase">
+        <button id="btnManualSyncCloud"
+          class="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-xs md:text-sm rounded-lg font-medium shadow-sm transition flex items-center gap-1.5"
+          title="Đồng bộ ngay dữ liệu 2 chiều giữa Máy tính & Điện thoại qua Firebase">
           <i class="fa-solid fa-cloud-arrow-up"></i> Đồng bộ Cloud
         </button>
 
         <!-- Save to Backend DB button -->
-        <button id="btnSaveToDB" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs md:text-sm rounded-lg font-medium shadow-sm transition flex items-center gap-1.5" title="Lưu toàn bộ số liệu tháng hiện tại vào CSDL SQLite">
+        <button id="btnSaveToDB"
+          class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs md:text-sm rounded-lg font-medium shadow-sm transition flex items-center gap-1.5"
+          title="Lưu toàn bộ số liệu tháng hiện tại vào CSDL SQLite">
           <i class="fa-solid fa-floppy-disk"></i> Lưu CSDL
         </button>
 
-        <button id="btnLoadSampleDec" title="Điền toàn bộ lịch Ca Ngày vào tháng đang chọn" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs md:text-sm rounded-lg font-medium shadow-sm transition flex items-center gap-1.5">
-          <i class="fa-solid fa-sun"></i> Điền Ca Ngày (Tháng này)
-        </button>
-        <button id="btnLoadSampleNov" title="Điền toàn bộ lịch Ca Đêm vào tháng đang chọn" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs md:text-sm rounded-lg font-medium shadow-sm transition flex items-center gap-1.5">
-          <i class="fa-solid fa-moon"></i> Điền Ca Đêm (Tháng này)
-        </button>
-        <button id="btnExportExcel" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs md:text-sm rounded-lg font-medium shadow-sm transition flex items-center gap-1.5">
+        <button id="btnLoadSampleDec"
+        title="Điền toàn bộ lịch Ca Ngày vào tháng đang chọn"
+        style="display: none;"
+        class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs md:text-sm rounded-lg font-medium shadow-sm transition flex items-center gap-1.5">
+    <i class="fa-solid fa-sun"></i> Điền Ca Ngày (Tháng này)
+</button>
+
+<button id="btnLoadSampleNov"
+        title="Điền toàn bộ lịch Ca Đêm vào tháng đang chọn"
+        style="display: none;"
+        class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs md:text-sm rounded-lg font-medium shadow-sm transition flex items-center gap-1.5">
+    <i class="fa-solid fa-moon"></i> Điền Ca Đêm (Tháng này)
+</button>
+        <button id="btnExportExcel"
+          class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs md:text-sm rounded-lg font-medium shadow-sm transition flex items-center gap-1.5">
           <i class="fa-solid fa-file-excel"></i> Xuất Excel (Cả năm)
         </button>
-        <button onclick="window.print()" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white text-xs md:text-sm rounded-lg font-medium shadow-sm transition flex items-center gap-1.5">
+        <button onclick="window.print()"
+          class="px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white text-xs md:text-sm rounded-lg font-medium shadow-sm transition flex items-center gap-1.5">
           <i class="fa-solid fa-print"></i> In / PDF
         </button>
-        <button id="btnResetData" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs md:text-sm rounded-lg font-medium transition flex items-center gap-1.5 border border-slate-300">
+        <button id="btnResetData"
+          class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs md:text-sm rounded-lg font-medium transition flex items-center gap-1.5 border border-slate-300">
           <i class="fa-solid fa-rotate-left"></i> Làm mới
         </button>
       </div>
@@ -179,29 +222,58 @@
 
     <!-- MAIN NAVIGATION TABS -->
     <div class="flex border-b border-slate-200 mt-3 gap-2">
-      <button id="tabBtnUnified" class="py-2.5 px-4 border-b-2 font-bold text-sm transition flex items-center gap-2 border-blue-600 text-blue-600">
-        <i class="fa-solid fa-table-cells text-blue-600"></i> Bảng Chấm Công Tự Động (Chọn Ca Thông Minh) & Bảng Tính Lương
+      <button id="tabBtnUnified"
+        class="py-2.5 px-4 border-b-2 font-bold text-sm transition flex items-center gap-2 border-blue-600 text-blue-600">
+        <i class="fa-solid fa-table-cells text-blue-600"></i> Bảng Chấm Công Tự Động (Chọn Ca Thông Minh) & Bảng Tính
+        Lương
       </button>
-      <button id="tabBtnYearSummary" class="py-2.5 px-4 border-b-2 font-bold text-sm transition flex items-center gap-2 border-transparent text-slate-500 hover:text-slate-800">
+      <button id="tabBtnYearSummary"
+        class="py-2.5 px-4 border-b-2 font-bold text-sm transition flex items-center gap-2 border-transparent text-slate-500 hover:text-slate-800">
         <i class="fa-solid fa-chart-pie text-emerald-600"></i> Bảng Thống Kê Tổng Tiền 12 Tháng Trong Năm
       </button>
     </div>
   </header>
 
   <!-- MAIN CONTAINER -->
-  <main class="max-w-[1750px] w-full mx-auto bg-white shadow-md rounded-xl p-3 md:p-5 border border-slate-200 print-container flex-grow">
-    
+  <main
+    class="max-w-[1750px] w-full mx-auto bg-white shadow-md rounded-xl p-3 md:p-5 border border-slate-200 print-container flex-grow">
+
     <!-- ======================================================== -->
     <!-- VIEW 1: BẢNG CHẤM CÔNG GỘP CA NGÀY & CA ĐÊM + TÍNH LƯƠNG -->
     <!-- ======================================================== -->
     <div id="viewUnified" class="block">
-      
+
       <!-- MONTH & YEAR SELECTOR BANNER -->
-      <div class="bg-cyan-banner border-2 border-cyan-400 rounded-t-lg p-2.5 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+      <div
+        class="bg-cyan-banner border-2 border-cyan-400 rounded-t-lg p-2.5 flex flex-wrap items-center justify-between gap-3 shadow-sm">
         <div class="flex flex-wrap items-center gap-3">
+          <!-- NHÂN VIÊN SELECTOR & MANAGEMENT -->
+          <div class="flex items-center gap-1.5 bg-white/95 px-3 py-1 rounded-md border border-cyan-500 shadow-xs">
+            <label for="selectEmployee" class="font-bold text-slate-900 text-sm flex items-center gap-1">
+              <i class="fa-solid fa-user-tie text-blue-600"></i> Nhân viên:
+            </label>
+            <select id="selectEmployee"
+              class="font-bold text-blue-700 bg-white border border-slate-300 rounded px-2 py-0.5 text-sm cursor-pointer outline-none focus:ring-2 focus:ring-blue-500 min-w-[140px] max-w-[210px]"
+              title="Chọn hồ sơ nhân viên để xem và chấm công">
+              <!-- Render động danh sách nhân viên -->
+            </select>
+            <div class="flex items-center gap-1">
+              <button type="button" id="btnAddNewEmp" class="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold shadow-xs flex items-center gap-1 transition" title="Thêm nhân viên mới">
+                <i class="fa-solid fa-user-plus"></i> Thêm
+              </button>
+              <button type="button" id="btnRenameEmp" class="px-1.5 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded text-xs font-medium transition" title="Đổi tên / Bộ phận">
+                <i class="fa-solid fa-pen"></i>
+              </button>
+              <button type="button" id="btnDeleteEmp" class="px-1.5 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-300 rounded text-xs font-medium transition" title="Xóa nhân viên này">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </div>
+          </div>
+
           <div class="flex items-center gap-1.5 bg-white/95 px-3 py-1 rounded-md border border-cyan-500 shadow-xs">
             <label for="selectMonth" class="font-bold text-slate-900 text-sm">Tháng:</label>
-            <select id="selectMonth" class="font-bold text-blue-700 bg-white border border-slate-300 rounded px-2 py-0.5 text-sm cursor-pointer outline-none focus:ring-2 focus:ring-blue-500">
+            <select id="selectMonth"
+              class="font-bold text-blue-700 bg-white border border-slate-300 rounded px-2 py-0.5 text-sm cursor-pointer outline-none focus:ring-2 focus:ring-blue-500">
               <option value="1">Tháng 1</option>
               <option value="2">Tháng 2</option>
               <option value="3">Tháng 3</option>
@@ -217,9 +289,16 @@
             </select>
           </div>
 
-          <div class="flex items-center gap-1.5 bg-white/95 px-3 py-1 rounded-md border border-cyan-500 shadow-xs">
+          <div class="flex items-center gap-1 bg-white/95 px-2 py-1 rounded-md border border-cyan-500 shadow-xs">
             <label for="inputYear" class="font-bold text-slate-900 text-sm">Năm:</label>
-            <input type="number" id="inputYear" value="2026" min="2000" max="2099" class="font-bold text-blue-700 bg-white border border-slate-300 rounded px-2 py-0.5 text-sm w-20 text-center outline-none focus:ring-2 focus:ring-blue-500">
+            <button type="button" id="btnPrevYearMain" class="px-1.5 py-0.5 text-slate-600 hover:text-blue-700 hover:bg-slate-100 rounded text-xs transition font-bold" title="Xem năm trước">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <input type="number" id="inputYear" value="2026" min="2000" max="2099"
+              class="font-bold text-blue-700 bg-white border border-slate-300 rounded px-1 py-0.5 text-sm w-16 text-center outline-none focus:ring-2 focus:ring-blue-500">
+            <button type="button" id="btnNextYearMain" class="px-1.5 py-0.5 text-slate-600 hover:text-blue-700 hover:bg-slate-100 rounded text-xs transition font-bold" title="Xem năm sau">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
           </div>
         </div>
 
@@ -233,45 +312,62 @@
           <span id="nightShiftCountBadge" class="bg-indigo-700 text-white px-2.5 py-1 rounded font-semibold shadow-xs">
             0 ca đêm
           </span>
+          <span id="leaveStatsBadge" class="hidden bg-emerald-700 text-white px-2.5 py-1 rounded font-semibold shadow-xs">
+          </span>
         </div>
       </div>
 
       <!-- QUICK FILL TOOLS BAR (ĐIỀN NHANH CA LÀM CẢ THÁNG) -->
-      <div class="no-print bg-slate-50 border-x border-b border-slate-300 p-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+      <div
+        class="no-print bg-slate-50 border-x border-b border-slate-300 p-2 flex flex-wrap items-center justify-between gap-2 text-xs">
         <div class="flex flex-wrap items-center gap-1.5">
-          <span class="font-bold text-slate-700 mr-1"><i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i> Điền nhanh cả tháng:</span>
-          <button id="btnQuickFillAllDay" class="px-2.5 py-1 bg-yellow-100 hover:bg-yellow-200 border border-yellow-400 text-yellow-900 rounded font-semibold transition flex items-center gap-1" title="Điền toàn bộ ngày thường thành Ca Ngày (8h + 3h OT)">
+          <span class="font-bold text-slate-700 mr-1"><i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i>
+            Điền nhanh cả tháng:</span>
+          <button id="btnQuickFillAllDay"
+            class="px-2.5 py-1 bg-yellow-100 hover:bg-yellow-200 border border-yellow-400 text-yellow-900 rounded font-semibold transition flex items-center gap-1"
+            title="Điền toàn bộ ngày thường thành Ca Ngày (8h + 3h OT)">
             <i class="fa-solid fa-sun text-amber-600"></i> Cả tháng Ca Ngày (8h + 3h OT)
           </button>
-          <button id="btnQuickFillAllNight" class="px-2.5 py-1 bg-indigo-100 hover:bg-indigo-200 border border-indigo-400 text-indigo-900 rounded font-semibold transition flex items-center gap-1" title="Điền toàn bộ ngày thường thành Ca Đêm (2h + 6h đêm + OT)">
+          <button id="btnQuickFillAllNight"
+            class="px-2.5 py-1 bg-indigo-100 hover:bg-indigo-200 border border-indigo-400 text-indigo-900 rounded font-semibold transition flex items-center gap-1"
+            title="Điền toàn bộ ngày thường thành Ca Đêm (2h + 6h đêm + OT)">
             <i class="fa-solid fa-moon text-indigo-600"></i> Cả tháng Ca Đêm (2h + 6h đêm + OT)
           </button>
-          <button id="btnQuickFillRotating" class="px-2.5 py-1 bg-purple-100 hover:bg-purple-200 border border-purple-400 text-purple-900 rounded font-semibold transition flex items-center gap-1" title="2 tuần đầu ca ngày, 2 tuần sau ca đêm">
+          <button id="btnQuickFillRotating"
+            class="px-2.5 py-1 bg-purple-100 hover:bg-purple-200 border border-purple-400 text-purple-900 rounded font-semibold transition flex items-center gap-1"
+            title="2 tuần đầu ca ngày, 2 tuần sau ca đêm">
             <i class="fa-solid fa-arrows-spin text-purple-600"></i> Xoay ca (2 tuần Ngày - 2 tuần Đêm)
           </button>
-          <button id="btnQuickClearAll" class="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded font-medium transition" title="Xóa toàn bộ giờ làm để nhập mới">
+          <button id="btnQuickClearAll"
+            class="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded font-medium transition"
+            title="Xóa toàn bộ giờ làm để nhập mới">
             <i class="fa-solid fa-eraser"></i> Xóa hết giờ
           </button>
         </div>
         <div class="text-[11px] text-slate-500 italic">
-          * Bạn có thể bấm chọn Ca Ngày ☀️ hoặc Ca Đêm 🌙 cho từng dòng, và vẫn gõ sửa trực tiếp từng ô số giờ theo ý muốn.
+          * Bạn có thể bấm chọn Ca Ngày ☀️ hoặc Ca Đêm 🌙 cho từng dòng, và vẫn gõ sửa trực tiếp từng ô số giờ theo ý
+          muốn.
         </div>
       </div>
 
       <!-- Title Yellow Banners -->
       <div class="grid grid-cols-1 xl:grid-cols-12 gap-0 border-x border-b border-black">
-        <div class="xl:col-span-7 bg-yellow-banner py-2 text-center font-bold text-sm md:text-base border-b xl:border-b-0 xl:border-r border-black tracking-wide uppercase">
+        <div
+          class="xl:col-span-7 bg-yellow-banner py-2 text-center font-bold text-sm md:text-base border-b xl:border-b-0 xl:border-r border-black tracking-wide uppercase">
           BẢNG CHẤM CÔNG TỔNG HỢP (TỰ ĐỘNG THEO CA + VẪN SỬA ĐƯỢC)
         </div>
-        <div class="xl:col-span-5 bg-yellow-banner py-2 text-center font-bold text-sm md:text-base tracking-wide uppercase flex items-center justify-center gap-2">
+        <div
+          class="xl:col-span-5 bg-yellow-banner py-2 text-center font-bold text-sm md:text-base tracking-wide uppercase flex items-center justify-center gap-2">
           <span>BẢNG CHUẨN TIỀN & TÍNH LƯƠNG ĐẦY ĐỦ PHỤ CẤP</span>
-          <span class="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-normal">Tự động tính</span>
+          <span
+            class="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-normal">Tự
+            động tính</span>
         </div>
       </div>
 
       <!-- Content Grid: Left Attendance Table & Right Salary Table -->
       <div class="grid grid-cols-1 xl:grid-cols-12 gap-3 mt-2">
-        
+
         <!-- LEFT: Combined Attendance Table (With Shift Buttons + 10 Data Cols) -->
         <div class="xl:col-span-7 overflow-x-auto">
           <table class="w-full text-xs border-collapse border border-black shadow-sm" id="tableAttendanceUnified">
@@ -309,8 +405,74 @@
             </tfoot>
           </table>
           <p class="text-[11px] text-slate-500 mt-1 italic">
-            * Bấm <span class="bg-yellow-200 text-yellow-900 font-bold px-1 rounded">Ngày</span> để tự điền 8h + 3h OT; bấm <span class="bg-indigo-200 text-indigo-900 font-bold px-1 rounded">Đêm</span> để tự điền 2h ngày + 6h đêm + OT đêm; bấm <span class="bg-slate-200 text-slate-800 font-bold px-1 rounded">Nghỉ</span> để xóa. Bạn vẫn có thể click vào bất kỳ ô nào để gõ sửa số giờ trực tiếp.
+            * Bấm <span class="bg-yellow-200 text-yellow-900 font-bold px-1 rounded">☀️</span> để tự điền 8h + 3h OT;
+            bấm <span class="bg-indigo-200 text-indigo-900 font-bold px-1 rounded">🌙</span> để tự điền 2h ngày + 6h
+            đêm + OT đêm; bấm <span class="bg-slate-200 text-slate-800 font-bold px-1 rounded">⚪</span> để xóa. Bạn
+            có thể chọn chế độ Nghỉ/Phép ở menu chọn ca hoặc gõ trực tiếp vào ô số giờ.
           </p>
+
+          <!-- LEAVE CODES LEGEND (BẢNG KÝ HIỆU CHẤM CÔNG & NGHỈ PHÉP) -->
+          <div class="mt-2 p-2 bg-slate-50 border border-slate-300 rounded text-xs no-print">
+            <div class="font-bold text-slate-800 mb-1 flex items-center gap-1.5">
+              <i class="fa-solid fa-tags text-blue-600"></i>
+              <span>KÝ HIỆU CHẤM CÔNG & NGHỈ PHÉP (Gõ trực tiếp vào ô Giờ thực tế hoặc chọn ở cột Chọn Ca):</span>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 text-[11px]">
+              <div class="p-1.5 bg-white border border-emerald-300 rounded flex items-center gap-1.5" title="Hưởng 100% lương (8h) + Đủ chuyên cần">
+                <span class="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-extrabold text-xs border border-emerald-300">P</span>
+                <div>
+                  <div class="font-bold text-emerald-900">Phép năm 年休假</div>
+                  <div class="text-[10px] text-emerald-700 font-medium">8h có lương • Đủ CC</div>
+                </div>
+              </div>
+              <div class="p-1.5 bg-white border border-rose-300 rounded flex items-center gap-1.5" title="Hưởng 100% lương (8h) + Đủ chuyên cần">
+                <span class="px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 font-extrabold text-xs border border-rose-300">L</span>
+                <div>
+                  <div class="font-bold text-rose-900">Nghỉ lễ 法定假期</div>
+                  <div class="text-[10px] text-rose-700 font-medium">8h có lương • Đủ CC</div>
+                </div>
+              </div>
+              <div class="p-1.5 bg-white border border-purple-300 rounded flex items-center gap-1.5" title="Hưởng 100% lương (8h) + Đủ chuyên cần">
+                <span class="px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 font-extrabold text-xs border border-purple-300">NB</span>
+                <div>
+                  <div class="font-bold text-purple-900">Nghỉ bù 补休</div>
+                  <div class="text-[10px] text-purple-700 font-medium">8h có lương • Đủ CC</div>
+                </div>
+              </div>
+              <div class="p-1.5 bg-white border border-amber-300 rounded flex items-center gap-1.5" title="Hưởng 100% lương (8h)">
+                <span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-extrabold text-xs border border-amber-300">N</span>
+                <div>
+                  <div class="font-bold text-amber-900">Nhỡ việc 待工</div>
+                  <div class="text-[10px] text-amber-700 font-medium">8h có lương • Tính công</div>
+                </div>
+              </div>
+              <div class="p-1.5 bg-white border border-slate-300 rounded flex items-center gap-1.5" title="0h lương (trừ công)">
+                <span class="px-1.5 py-0.5 rounded bg-slate-200 text-slate-800 font-extrabold text-xs border border-slate-300">KL</span>
+                <div>
+                  <div class="font-bold text-slate-900">Việc riêng 事假</div>
+                  <div class="text-[10px] text-slate-600 font-medium">0h • Không lương</div>
+                </div>
+              </div>
+              <div class="p-1.5 bg-white border border-red-400 rounded flex items-center gap-1.5" title="0h lương, MẤT TOÀN BỘ CHUYÊN CẦN">
+                <span class="px-1.5 py-0.5 rounded bg-red-200 text-red-900 font-extrabold text-xs border border-red-400">TD</span>
+                <div>
+                  <div class="font-bold text-red-900">Tự do 旷工</div>
+                  <div class="text-[10px] text-red-700 font-bold">0h • MẤT CHUYÊN CẦN</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- CHẾ ĐỘ NỬA NGÀY (4H) -->
+            <div class="mt-2 pt-1.5 border-t border-slate-200 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-600">
+              <span class="font-bold text-slate-800"><i class="fa-solid fa-clock-rotate-left text-blue-600"></i> Chế độ nửa ngày (gõ phím hoặc chọn nhanh):</span>
+              <span class="inline-flex items-center gap-1"><b class="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-300 font-bold text-xs">4P</b> Làm 4h + Phép 4h (tổng 8h lương, đủ CC)</span>
+              <span class="inline-flex items-center gap-1"><b class="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-300 font-bold text-xs">0.5P</b> Nghỉ nửa ngày phép (4h lương)</span>
+              <span class="inline-flex items-center gap-1"><b class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-300 font-bold text-xs">4KL</b> Làm 4h + Việc riêng 4h (4h lương)</span>
+              <span class="inline-flex items-center gap-1"><b class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-300 font-bold text-xs">0.5KL</b> Nửa ngày ko lương (0h)</span>
+              <span class="inline-flex items-center gap-1"><b class="px-1.5 py-0.5 rounded bg-red-100 text-red-900 border border-red-300 font-bold text-xs">4TD</b> Làm 4h + Tự do 4h (4h lương, Mất CC)</span>
+              <span class="inline-flex items-center gap-1"><b class="px-1.5 py-0.5 rounded bg-red-100 text-red-900 border border-red-300 font-bold text-xs">0.5TD</b> Nửa ngày tự do (0h, Mất CC)</span>
+            </div>
+          </div>
         </div>
 
         <!-- RIGHT: Salary & Compensation Table (With ALL Allowances from new photo) -->
@@ -330,67 +492,78 @@
               <tr>
                 <td class="border border-black px-2 py-1.5 font-bold bg-slate-50">Họ và tên</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="text" id="empName" value="Nguyễn Công Thịnh" class="table-input font-medium text-left px-2 bg-amber-50/40" title="Nhấp để sửa họ tên">
+                  <input type="text" id="empName" value="Nguyễn Công Thịnh"
+                    class="table-input font-medium text-left px-2 bg-amber-50/40" title="Nhấp để sửa họ tên">
                 </td>
                 <td class="border border-black px-2 py-1.5 font-bold bg-slate-50 flex items-center justify-between">
                   <span>Ngày công chuẩn</span>
                   <span class="auto-badge" title="Tự động tính = Tổng ngày trừ Chủ Nhật">Tự động</span>
                 </td>
-                <td class="border border-black px-2 py-1 text-right font-bold text-blue-700 num-font" id="stdWorkDays">27</td>
+                <td class="border border-black px-2 py-1 text-right font-bold text-blue-700 num-font" id="stdWorkDays">
+                  27</td>
               </tr>
               <!-- Row 2: Bộ phận & Số giờ tiêu chuẩn -->
               <tr>
                 <td class="border border-black px-2 py-1.5 font-bold bg-slate-50">Bộ phận</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="text" id="empDept" value="工程部 (Bộ phận Kỹ thuật)" class="table-input font-medium text-left px-2 bg-amber-50/40" title="Nhấp để sửa bộ phận">
+                  <input type="text" id="empDept" value="工程部 (Bộ phận Kỹ thuật)"
+                    class="table-input font-medium text-left px-2 bg-amber-50/40" title="Nhấp để sửa bộ phận">
                 </td>
                 <td class="border border-black px-2 py-1.5 font-bold bg-slate-50 flex items-center justify-between">
                   <span>Số giờ tiêu chuẩn</span>
                   <span class="auto-badge" title="= Ngày công chuẩn x 8">Tự động</span>
                 </td>
-                <td class="border border-black px-2 py-1 text-right font-bold text-slate-800 num-font" id="stdWorkHours">216</td>
+                <td class="border border-black px-2 py-1 text-right font-bold text-slate-800 num-font"
+                  id="stdWorkHours">216</td>
               </tr>
               <!-- Row 3: LCB & Đơn giá giờ -->
               <tr>
                 <td class="border border-black px-2 py-1.5 font-bold bg-slate-50">Lương cơ bản (LCB)</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="baseSalary" value="6300000" step="50000" class="table-input font-bold text-right px-2 bg-amber-50/40" title="Nhấp để sửa Lương cơ bản">
+                  <input type="number" id="baseSalary" value="6300000" step="50000"
+                    class="table-input font-bold text-right px-2 bg-amber-50/40" title="Nhấp để sửa Lương cơ bản">
                 </td>
                 <td class="border border-black px-2 py-1.5 font-bold bg-slate-50 flex items-center justify-between">
                   <span>Đơn giá giờ</span>
                   <span class="auto-badge" title="= Lương đóng BH / 216 giờ">Tự động</span>
                 </td>
-                <td class="border border-black px-2 py-1 text-right font-bold text-amber-700 num-font" id="hourlyRate">40.972</td>
+                <td class="border border-black px-2 py-1 text-right font-bold text-amber-700 num-font" id="hourlyRate">
+                  40.972</td>
               </tr>
               <!-- Row 4: Phụ cấp chức vụ & Hệ số KPI -->
               <tr>
                 <td class="border border-black px-2 py-1.5 font-bold bg-slate-50">Phụ cấp chức vụ</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="positionAllowance" value="2450000" step="50000" class="table-input font-bold text-right px-2 bg-amber-50/40" title="Nhấp để sửa phụ cấp chức vụ">
+                  <input type="number" id="positionAllowance" value="2450000" step="50000"
+                    class="table-input font-bold text-right px-2 bg-amber-50/40" title="Nhấp để sửa phụ cấp chức vụ">
                 </td>
                 <td class="border border-black px-2 py-1.5 font-bold bg-slate-50">Hệ số KPI</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="kpiCoeff" value="1" step="0.1" min="0" max="3" class="table-input font-bold text-center bg-amber-50/40 num-font" title="Nhấp để sửa hệ số KPI">
+                  <input type="number" id="kpiCoeff" value="1" step="0.1" min="0" max="3"
+                    class="table-input font-bold text-center bg-amber-50/40 num-font" title="Nhấp để sửa hệ số KPI">
                 </td>
               </tr>
               <!-- Row 5: Thâm niên & Lương đóng BH -->
               <tr>
                 <td class="border border-black px-2 py-1.5 font-bold bg-slate-50">Thâm niên</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="seniorityAllowance" value="100000" step="50000" class="table-input font-bold text-right px-2 bg-amber-50/40" title="Nhấp để sửa phụ cấp thâm niên">
+                  <input type="number" id="seniorityAllowance" value="100000" step="50000"
+                    class="table-input font-bold text-right px-2 bg-amber-50/40" title="Nhấp để sửa phụ cấp thâm niên">
                 </td>
-                <td class="border border-black px-2 py-1.5 font-bold bg-slate-50 text-indigo-800 flex items-center justify-between">
+                <td
+                  class="border border-black px-2 py-1.5 font-bold bg-slate-50 text-indigo-800 flex items-center justify-between">
                   <span>Lương đóng BH</span>
                   <span class="auto-badge" title="= LCB + Chức vụ + Thâm niên">Tự động</span>
                 </td>
-                <td class="border border-black px-2 py-1 text-right font-bold text-indigo-700 num-font" id="insuranceSalary">8.850.000</td>
+                <td class="border border-black px-2 py-1 text-right font-bold text-indigo-700 num-font"
+                  id="insuranceSalary">8.850.000</td>
               </tr>
 
               <!-- PART 2: MỤC TÍNH LƯƠNG TỰ ĐỘNG -->
               <tr class="bg-blue-header text-white text-center font-bold">
                 <td class="border border-black py-2 px-2">MỤC TÍNH LƯƠNG</td>
                 <td class="border border-black py-2 px-2">CÔNG THỨC / ĐƠN GIÁ</td>
-                <td class="border border-black py-2 px-2">SỐ GIỜ (TỪ BẢNG CÔNG)</td>
+                <td class="border border-black py-2 px-2">SỐ GIỜ / TIÊU CHUẨN</td>
                 <td class="border border-black py-2 px-2">THÀNH TIỀN (VNĐ)</td>
               </tr>
 
@@ -402,7 +575,8 @@
                 </td>
                 <td class="border border-black px-2 py-1.5 text-right num-font" id="unitRateDay">40.972</td>
                 <td class="border border-black px-2 py-1.5 text-center text-blue-700 num-font" id="hoursDay">216</td>
-                <td class="border border-black px-2 py-1.5 text-right text-blue-700 num-font font-bold" id="amountDay">8.850.000</td>
+                <td class="border border-black px-2 py-1.5 text-right text-blue-700 num-font font-bold" id="amountDay">
+                  8.850.000</td>
               </tr>
 
               <!-- II. LÀM THÊM GIỜ & CA ĐÊM (OT) -->
@@ -412,8 +586,10 @@
                   <span class="auto-badge">Tự động</span>
                 </td>
                 <td class="border border-black px-2 py-1.5 text-center text-slate-400">-</td>
-                <td class="border border-black px-2 py-1.5 text-center text-purple-700 num-font font-bold" id="totalOTHours">114</td>
-                <td class="border border-black px-2 py-1.5 text-right text-purple-700 num-font font-bold" id="totalOTAmount">7.682.292</td>
+                <td class="border border-black px-2 py-1.5 text-center text-purple-700 num-font font-bold"
+                  id="totalOTHours">114</td>
+                <td class="border border-black px-2 py-1.5 text-right text-purple-700 num-font font-bold"
+                  id="totalOTAmount">7.682.292</td>
               </tr>
               <!-- 1. Ca đêm (130%) -->
               <tr>
@@ -422,7 +598,8 @@
                   <span class="text-[9px] text-slate-400">+30%</span>
                 </td>
                 <td class="border border-black px-2 py-1 text-right text-slate-600 num-font" id="rateOT130">12.292</td>
-                <td class="border border-black px-2 py-1 text-center font-semibold num-font text-blue-800" id="hoursOT130">0</td>
+                <td class="border border-black px-2 py-1 text-center font-semibold num-font text-blue-800"
+                  id="hoursOT130">0</td>
                 <td class="border border-black px-2 py-1 text-right font-medium num-font" id="amountOT130">0</td>
               </tr>
               <!-- 2. Tăng ca thường 150% -->
@@ -432,8 +609,10 @@
                   <span class="text-[9px] text-slate-400">x 1.5</span>
                 </td>
                 <td class="border border-black px-2 py-1 text-right text-slate-600 num-font" id="rateOT150">61.458</td>
-                <td class="border border-black px-2 py-1 text-center font-semibold num-font text-blue-800" id="hoursOT150">81</td>
-                <td class="border border-black px-2 py-1 text-right font-medium num-font" id="amountOT150">4.978.125</td>
+                <td class="border border-black px-2 py-1 text-center font-semibold num-font text-blue-800"
+                  id="hoursOT150">81</td>
+                <td class="border border-black px-2 py-1 text-right font-medium num-font" id="amountOT150">4.978.125
+                </td>
               </tr>
               <!-- 3. Tăng ca CN ngày 200% -->
               <tr>
@@ -442,8 +621,10 @@
                   <span class="text-[9px] text-slate-400">x 2.0</span>
                 </td>
                 <td class="border border-black px-2 py-1 text-right text-slate-600 num-font" id="rateOT200">81.944</td>
-                <td class="border border-black px-2 py-1 text-center font-semibold num-font text-blue-800" id="hoursOT200">33</td>
-                <td class="border border-black px-2 py-1 text-right font-medium num-font" id="amountOT200">2.704.167</td>
+                <td class="border border-black px-2 py-1 text-center font-semibold num-font text-blue-800"
+                  id="hoursOT200">33</td>
+                <td class="border border-black px-2 py-1 text-right font-medium num-font" id="amountOT200">2.704.167
+                </td>
               </tr>
               <!-- 4. Tăng ca đêm thường 210% -->
               <tr>
@@ -452,7 +633,8 @@
                   <span class="text-[9px] text-slate-400">x 2.1</span>
                 </td>
                 <td class="border border-black px-2 py-1 text-right text-slate-600 num-font" id="rateOT210">86.041</td>
-                <td class="border border-black px-2 py-1 text-center font-semibold num-font text-blue-800" id="hoursOT210">0</td>
+                <td class="border border-black px-2 py-1 text-center font-semibold num-font text-blue-800"
+                  id="hoursOT210">0</td>
                 <td class="border border-black px-2 py-1 text-right font-medium num-font" id="amountOT210">0</td>
               </tr>
               <!-- 5. Tăng ca đêm CN 270% -->
@@ -462,7 +644,8 @@
                   <span class="text-[9px] text-slate-400">x 2.7</span>
                 </td>
                 <td class="border border-black px-2 py-1 text-right text-slate-600 num-font" id="rateOT270">110.625</td>
-                <td class="border border-black px-2 py-1 text-center font-semibold num-font text-blue-800" id="hoursOT270">0</td>
+                <td class="border border-black px-2 py-1 text-center font-semibold num-font text-blue-800"
+                  id="hoursOT270">0</td>
                 <td class="border border-black px-2 py-1 text-right font-medium num-font" id="amountOT270">0</td>
               </tr>
               <!-- 6. Tăng ca Lễ ngày 300% -->
@@ -472,7 +655,8 @@
                   <span class="text-[9px] text-slate-400">x 3.0</span>
                 </td>
                 <td class="border border-black px-2 py-1 text-right text-slate-600 num-font" id="rateOT300">122.917</td>
-                <td class="border border-black px-2 py-1 text-center font-semibold num-font text-blue-800" id="hoursOT300">0</td>
+                <td class="border border-black px-2 py-1 text-center font-semibold num-font text-blue-800"
+                  id="hoursOT300">0</td>
                 <td class="border border-black px-2 py-1 text-right font-medium num-font" id="amountOT300">0</td>
               </tr>
               <!-- 7. Tăng ca Lễ đêm 390% -->
@@ -482,7 +666,8 @@
                   <span class="text-[9px] text-slate-400">x 3.9</span>
                 </td>
                 <td class="border border-black px-2 py-1 text-right text-slate-600 num-font" id="rateOT390">159.792</td>
-                <td class="border border-black px-2 py-1 text-center font-semibold num-font text-blue-800" id="hoursOT390">0</td>
+                <td class="border border-black px-2 py-1 text-center font-semibold num-font text-blue-800"
+                  id="hoursOT390">0</td>
                 <td class="border border-black px-2 py-1 text-right font-medium num-font" id="amountOT390">0</td>
               </tr>
 
@@ -494,14 +679,16 @@
                 </td>
                 <td class="border border-black px-2 py-1.5 text-center text-slate-400">-</td>
                 <td class="border border-black px-2 py-1.5 text-center text-slate-600">Tiêu chuẩn</td>
-                <td class="border border-black px-2 py-1.5 text-right text-emerald-700 num-font font-bold" id="totalAllowance">1.000.000</td>
+                <td class="border border-black px-2 py-1.5 text-right text-emerald-700 num-font font-bold"
+                  id="totalAllowance">1.000.000</td>
               </tr>
               <tr>
                 <td class="border border-black px-2 py-1 pl-4">1. Trợ cấp xăng xe</td>
                 <td class="border border-black px-2 py-1 text-center text-slate-500">Cố định</td>
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="allowanceGas" value="500000" step="50000" class="table-input text-right font-medium px-2 num-font bg-amber-50/40">
+                  <input type="number" id="allowanceGas" value="500000" step="50000"
+                    class="table-input text-right font-medium px-2 num-font bg-amber-50/40">
                 </td>
               </tr>
               <tr>
@@ -509,7 +696,8 @@
                 <td class="border border-black px-2 py-1 text-center text-slate-500">Cố định</td>
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="allowanceHouse" value="500000" step="50000" class="table-input text-right font-medium px-2 num-font bg-amber-50/40">
+                  <input type="number" id="allowanceHouse" value="500000" step="50000"
+                    class="table-input text-right font-medium px-2 num-font bg-amber-50/40">
                 </td>
               </tr>
               <tr>
@@ -517,7 +705,8 @@
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="allowanceChild" value="0" step="50000" class="table-input text-right font-medium px-2 num-font bg-amber-50/40" placeholder="0">
+                  <input type="number" id="allowanceChild" value="0" step="50000"
+                    class="table-input text-right font-medium px-2 num-font bg-amber-50/40" placeholder="0">
                 </td>
               </tr>
               <tr>
@@ -525,31 +714,40 @@
                 <td class="border border-black px-2 py-1 text-center text-slate-400">/</td>
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="allowanceSafety" value="0" step="50000" class="table-input text-right font-medium px-2 num-font bg-amber-50/40" placeholder="0">
+                  <input type="number" id="allowanceSafety" value="0" step="50000"
+                    class="table-input text-right font-medium px-2 num-font bg-amber-50/40" placeholder="0">
                 </td>
               </tr>
               <!-- 5. Trợ cấp ca đêm (từ ảnh: 780.000) -->
               <tr class="bg-indigo-50/30">
                 <td class="border border-black px-2 py-1 pl-4 flex items-center justify-between">
                   <span class="font-semibold text-indigo-900">5. Trợ cấp ca đêm</span>
-                  <span class="auto-badge bg-indigo-100 text-indigo-800" title="Tự động tính theo số ca đêm hoặc sửa tay">Tự tính</span>
+                  <span class="auto-badge bg-indigo-100 text-indigo-800"
+                    title="Tự động tính theo số ca đêm hoặc sửa tay">Tự tính</span>
                 </td>
-                <td class="border border-black px-2 py-1 text-center text-indigo-700 text-[10px]" id="labelNightSubsidy">30k x 0 đêm</td>
+                <td class="border border-black px-2 py-1 text-center text-indigo-700 text-[10px]"
+                  id="labelNightSubsidy">30k x 0 đêm</td>
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="allowanceNight" value="0" step="30000" class="table-input text-right font-bold px-2 num-font text-indigo-800 bg-amber-50/40" title="Có thể sửa tay số tiền trợ cấp ca đêm">
+                  <input type="number" id="allowanceNight" value="0" step="30000"
+                    class="table-input text-right font-bold px-2 num-font text-indigo-800 bg-amber-50/40"
+                    title="Có thể sửa tay số tiền trợ cấp ca đêm">
                 </td>
               </tr>
               <!-- 6. Tiền ăn ca đêm / Tiền 10K ca ngày (từ ảnh: 650.000) -->
               <tr class="bg-indigo-50/30">
                 <td class="border border-black px-2 py-1 pl-4 flex items-center justify-between">
                   <span class="font-semibold text-indigo-900">6. Tiền ăn ca đêm / Tiền 10K ca ngày</span>
-                  <span class="auto-badge bg-indigo-100 text-indigo-800" title="Tự tính theo ca hoặc sửa tay">Tự tính</span>
+                  <span class="auto-badge bg-indigo-100 text-indigo-800" title="Tự tính theo ca hoặc sửa tay">Tự
+                    tính</span>
                 </td>
-                <td class="border border-black px-2 py-1 text-center text-indigo-700 text-[10px]" id="labelMealSubsidy">25k/đêm</td>
+                <td class="border border-black px-2 py-1 text-center text-indigo-700 text-[10px]" id="labelMealSubsidy">
+                  25k/đêm</td>
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="allowanceMealNight" value="0" step="25000" class="table-input text-right font-bold px-2 num-font text-indigo-800 bg-amber-50/40" title="Có thể sửa tay tiền ăn ca đêm">
+                  <input type="number" id="allowanceMealNight" value="0" step="25000"
+                    class="table-input text-right font-bold px-2 num-font text-indigo-800 bg-amber-50/40"
+                    title="Có thể sửa tay tiền ăn ca đêm">
                 </td>
               </tr>
               <tr>
@@ -557,7 +755,8 @@
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="allowancePeriod" value="0" step="50000" class="table-input text-right font-medium px-2 num-font bg-amber-50/40" placeholder="0">
+                  <input type="number" id="allowancePeriod" value="0" step="50000"
+                    class="table-input text-right font-medium px-2 num-font bg-amber-50/40" placeholder="0">
                 </td>
               </tr>
               <tr>
@@ -565,7 +764,8 @@
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="allowanceOther" value="0" step="50000" class="table-input text-right font-medium px-2 num-font bg-amber-50/40" placeholder="0">
+                  <input type="number" id="allowanceOther" value="0" step="50000"
+                    class="table-input text-right font-medium px-2 num-font bg-amber-50/40" placeholder="0">
                 </td>
               </tr>
 
@@ -576,8 +776,14 @@
                   <span class="auto-badge">Tự động</span>
                 </td>
                 <td class="border border-black px-2 py-1.5 text-center text-slate-400">-</td>
-                <td class="border border-black px-2 py-1.5 text-right text-slate-700 num-font font-semibold px-2" id="stdTotalBonus">3.650.000</td>
-                <td class="border border-black px-2 py-1.5 text-right text-emerald-700 num-font font-bold" id="totalBonus">3.650.000</td>
+                <td class="border border-black px-2 py-1.5 text-right text-slate-700 num-font font-semibold px-2">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-normal text-slate-500 uppercase tracking-wider">Tiêu chuẩn:</span>
+                    <span id="stdTotalBonus">3.650.000</span>
+                  </div>
+                </td>
+                <td class="border border-black px-2 py-1.5 text-right text-emerald-700 num-font font-bold"
+                  id="totalBonus">3.650.000</td>
               </tr>
               <tr>
                 <td class="border border-black px-2 py-1 pl-4 flex items-center justify-between">
@@ -586,22 +792,30 @@
                 </td>
                 <td class="border border-black px-2 py-1 text-center text-slate-500" id="attBonusStatus">Đủ công</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="bonusAttendance" value="600000" step="50000" class="table-input text-right font-medium px-2 num-font bg-amber-50/40" title="Tiền thưởng chuyên cần tiêu chuẩn">
+                  <input type="number" id="bonusAttendance" value="600000" step="50000"
+                    class="table-input text-right font-medium px-2 num-font bg-amber-50/40"
+                    title="Tiền thưởng chuyên cần tiêu chuẩn">
                 </td>
-                <td class="border border-black px-2 py-1 text-right font-bold text-slate-900 num-font" id="amountBonusAtt">600.000</td>
+                <td class="border border-black px-2 py-1 text-right font-bold text-slate-900 num-font"
+                  id="amountBonusAtt">600.000</td>
               </tr>
               <tr>
                 <td class="border border-black px-2 py-1 pl-4">2. Tiền thưởng thành tích KPI</td>
                 <td class="border border-black px-2 py-1 text-center text-slate-600">
                   <div class="inline-flex items-center justify-center gap-1">
                     <span id="labelKPIBonus">Hệ số:</span>
-                    <input type="number" id="kpiCoeffInline" value="1" step="0.05" min="0" max="3" class="w-14 text-center font-bold border border-slate-300 rounded bg-white text-xs py-0.5 num-font focus:ring-1 focus:ring-blue-500 outline-none" title="Nhấp để sửa hệ số KPI">
+                    <input type="number" id="kpiCoeffInline" value="1" step="0.05" min="0" max="3"
+                      class="w-14 text-center font-bold border border-slate-300 rounded bg-white text-xs py-0.5 num-font focus:ring-1 focus:ring-blue-500 outline-none"
+                      title="Nhấp để sửa hệ số KPI">
                   </div>
                 </td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="bonusKPI" value="3050000" step="50000" class="table-input text-right font-medium px-2 num-font bg-amber-50/40" title="Tiền thưởng KPI tiêu chuẩn (hệ số 1)">
+                  <input type="number" id="bonusKPI" value="3050000" step="50000"
+                    class="table-input text-right font-medium px-2 num-font bg-amber-50/40"
+                    title="Tiền thưởng KPI tiêu chuẩn (hệ số 1)">
                 </td>
-                <td class="border border-black px-2 py-1 text-right font-bold text-slate-900 num-font" id="amountBonusKPI">3.050.000</td>
+                <td class="border border-black px-2 py-1 text-right font-bold text-slate-900 num-font"
+                  id="amountBonusKPI">3.050.000</td>
               </tr>
 
               <!-- V. TỔNG THU NHẬP -->
@@ -612,7 +826,8 @@
                 </td>
                 <td class="border border-black px-2 py-2 text-center text-slate-400">-</td>
                 <td class="border border-black px-2 py-2 text-center text-slate-400">-</td>
-                <td class="border border-black px-2 py-2 text-right text-blue-900 num-font font-bold text-sm" id="totalGrossIncome">21.182.292</td>
+                <td class="border border-black px-2 py-2 text-right text-blue-900 num-font font-bold text-sm"
+                  id="totalGrossIncome">21.182.292</td>
               </tr>
 
               <!-- VI. CÁC KHOẢN GIẢM TRỪ -->
@@ -623,42 +838,52 @@
                 </td>
                 <td class="border border-black px-2 py-1.5 text-center text-slate-600">Tỷ lệ</td>
                 <td class="border border-black px-2 py-1.5 text-center text-slate-600">Lương đóng BH</td>
-                <td class="border border-black px-2 py-1.5 text-right text-rose-700 num-font font-bold" id="headerDeductions">973.500</td>
+                <td class="border border-black px-2 py-1.5 text-right text-rose-700 num-font font-bold"
+                  id="headerDeductions">973.500</td>
               </tr>
               <tr>
                 <td class="border border-black px-2 py-1 pl-4">1. Bảo hiểm xã hội (BHXH - 8%)</td>
                 <td class="border border-black px-2 py-1 text-center font-medium">8%</td>
                 <td class="border border-black px-2 py-1 text-right text-slate-600 baseInsLabel num-font">8.850.000</td>
-                <td class="border border-black px-2 py-1 text-right text-rose-700 font-medium num-font" id="deductBHXH">708.000</td>
+                <td class="border border-black px-2 py-1 text-right text-rose-700 font-medium num-font" id="deductBHXH">
+                  708.000</td>
               </tr>
               <tr>
                 <td class="border border-black px-2 py-1 pl-4">2. Bảo hiểm y tế (BHYT - 1.5%)</td>
                 <td class="border border-black px-2 py-1 text-center font-medium">1,50%</td>
                 <td class="border border-black px-2 py-1 text-right text-slate-600 baseInsLabel num-font">8.850.000</td>
-                <td class="border border-black px-2 py-1 text-right text-rose-700 font-medium num-font" id="deductBHYT">132.750</td>
+                <td class="border border-black px-2 py-1 text-right text-rose-700 font-medium num-font" id="deductBHYT">
+                  132.750</td>
               </tr>
               <tr>
                 <td class="border border-black px-2 py-1 pl-4">3. Bảo hiểm thất nghiệp (BHTN - 1%)</td>
                 <td class="border border-black px-2 py-1 text-center font-medium">1%</td>
                 <td class="border border-black px-2 py-1 text-right text-slate-600 baseInsLabel num-font">8.850.000</td>
-                <td class="border border-black px-2 py-1 text-right text-rose-700 font-medium num-font" id="deductBHTN">88.500</td>
+                <td class="border border-black px-2 py-1 text-right text-rose-700 font-medium num-font" id="deductBHTN">
+                  88.500</td>
               </tr>
               <tr>
                 <td class="border border-black px-2 py-1 pl-4">4. Kinh phí công đoàn (0.5%)</td>
                 <td class="border border-black px-2 py-1 text-center font-medium">0,50%</td>
                 <td class="border border-black px-2 py-1 text-right text-slate-600 baseInsLabel num-font">8.850.000</td>
-                <td class="border border-black px-2 py-1 text-right text-rose-700 font-medium num-font" id="deductKPCĐ">44.250</td>
+                <td class="border border-black px-2 py-1 text-right text-rose-700 font-medium num-font" id="deductKPCĐ">
+                  44.250</td>
               </tr>
               <tr>
                 <td class="border border-black px-2 py-1 pl-4 flex items-center justify-between">
                   <span>5. Thuế thu nhập cá nhân (TNCN)</span>
-                  <label class="inline-flex items-center gap-1 cursor-pointer text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 hover:bg-emerald-100 transition" title="Bỏ tích nếu muốn tính thuế TNCN">
-                    <input type="checkbox" id="taxExemptToggle" checked class="w-3.5 h-3.5 rounded text-emerald-600 focus:ring-0"> Không tính thuế
+                  <label
+                    class="inline-flex items-center gap-1 cursor-pointer text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 hover:bg-emerald-100 transition"
+                    title="Bỏ tích nếu muốn tính thuế TNCN">
+                    <input type="checkbox" id="taxExemptToggle" checked
+                      class="w-3.5 h-3.5 rounded text-emerald-600 focus:ring-0"> Không tính thuế
                   </label>
                 </td>
-                <td class="border border-black px-2 py-1 text-center text-slate-500 font-medium" id="taxRateLabel">0% (Miễn thuế)</td>
+                <td class="border border-black px-2 py-1 text-center text-slate-500 font-medium" id="taxRateLabel">0%
+                  (Miễn thuế)</td>
                 <td class="border border-black px-2 py-1 text-right text-slate-400 num-font" id="taxableAmount">-</td>
-                <td class="border border-black px-2 py-1 text-right font-medium text-slate-600 num-font" id="deductTNCN">0</td>
+                <td class="border border-black px-2 py-1 text-right font-medium text-slate-600 num-font"
+                  id="deductTNCN">0</td>
               </tr>
 
               <!-- TỔNG CÁC KHOẢN GIẢM TRỪ -->
@@ -669,7 +894,8 @@
                 </td>
                 <td class="border border-black px-2 py-1.5 text-center text-slate-400">-</td>
                 <td class="border border-black px-2 py-1.5 text-center text-slate-400">-</td>
-                <td class="border border-black px-2 py-1.5 text-right text-rose-700 num-font font-bold" id="totalDeductions">973.500</td>
+                <td class="border border-black px-2 py-1.5 text-right text-rose-700 num-font font-bold"
+                  id="totalDeductions">973.500</td>
               </tr>
 
               <!-- VII. THỰC LĨNH / THỰC NHẬN -->
@@ -677,7 +903,9 @@
                 <td class="border border-black px-3 py-2.5 text-center font-bold tracking-wider" colspan="3">
                   VII. THỰC LĨNH / THỰC NHẬN (V - VI)
                 </td>
-                <td class="border border-black px-3 py-2.5 text-right tracking-wide num-font font-bold text-base md:text-lg" id="netSalary">
+                <td
+                  class="border border-black px-3 py-2.5 text-right tracking-wide num-font font-bold text-base md:text-lg"
+                  id="netSalary">
                   20.208.792
                 </td>
               </tr>
@@ -686,11 +914,14 @@
               <tr class="bg-slate-50">
                 <td class="border border-black px-2 py-2 font-bold text-slate-800">Thông tin thanh toán</td>
                 <td class="border border-black px-1 py-1" colspan="1">
-                  <input type="text" id="bankAccount" value="STK: 102884878810" class="table-input font-medium text-left px-2 bg-amber-50/40" title="Nhấp để sửa số tài khoản">
+                  <input type="text" id="bankAccount" value="STK: 102884878810"
+                    class="table-input font-medium text-left px-2 bg-amber-50/40" title="Nhấp để sửa số tài khoản">
                 </td>
                 <td class="border border-black px-2 py-2 font-bold text-slate-700 text-center">Ngân hàng:</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="text" id="bankName" value="VietinBank" class="table-input font-semibold text-center text-blue-700 px-1 bg-amber-50/40" title="Nhấp để sửa tên ngân hàng">
+                  <input type="text" id="bankName" value="VietinBank"
+                    class="table-input font-semibold text-center text-blue-700 px-1 bg-amber-50/40"
+                    title="Nhấp để sửa tên ngân hàng">
                 </td>
               </tr>
 
@@ -762,17 +993,47 @@
     <!-- VIEW 2: BẢNG THỐNG KÊ TỔNG TIỀN CẢ NĂM (12 THÁNG) -->
     <!-- ======================================================== -->
     <div id="viewYearSummary" class="hidden">
-      
+
       <!-- Header Banner -->
-      <div class="bg-cyan-banner border-2 border-cyan-400 rounded-t-lg p-3 flex flex-wrap items-center justify-between gap-3 shadow-sm">
-        <div class="flex items-center gap-2">
+      <div
+        class="bg-cyan-banner border-2 border-cyan-400 rounded-t-lg p-3 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+        <div class="flex flex-wrap items-center gap-2">
           <i class="fa-solid fa-chart-column text-blue-800 text-lg"></i>
           <span class="font-bold text-slate-900 text-base md:text-lg">
-            BẢNG THỐNG KÊ TỔNG HỢP TIỀN LƯƠNG 12 THÁNG TRONG NĂM <span id="summaryYearLabel" class="text-blue-800 font-mono">2026</span>
+            BẢNG THỐNG KÊ TIỀN LƯƠNG 12 THÁNG
           </span>
+          <!-- Bộ chọn nhân viên trong View Thống Kê -->
+          <div class="inline-flex items-center gap-1.5 bg-white px-2.5 py-1 rounded border border-blue-400 shadow-2xs ml-1">
+            <label for="selectEmployeeSummary" class="text-xs font-bold text-slate-700 flex items-center gap-1">
+              <i class="fa-solid fa-user-tie text-blue-600"></i> NV:
+            </label>
+            <select id="selectEmployeeSummary" class="font-bold text-blue-800 text-xs bg-transparent outline-none cursor-pointer max-w-[170px]" title="Chuyển xem bảng thống kê của nhân viên khác">
+              <!-- Render động danh sách nhân viên -->
+            </select>
+          </div>
+
+          <!-- Bộ chuyển năm nhanh ngay trong View Thống Kê -->
+          <div class="inline-flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-blue-400 shadow-2xs ml-1">
+            <button type="button" id="btnPrevYearSummary" class="px-1.5 py-0.5 text-blue-800 hover:bg-blue-100 rounded text-xs font-bold transition" title="Xem năm trước">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <select id="selectYearSummary" class="font-bold text-blue-800 font-mono text-sm bg-transparent outline-none cursor-pointer">
+              <!-- Render động danh sách các năm qua JS -->
+            </select>
+            <button type="button" id="btnNextYearSummary" class="px-1.5 py-0.5 text-blue-800 hover:bg-blue-100 rounded text-xs font-bold transition" title="Xem năm sau">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+          <span id="summaryYearLabel" class="hidden">2026</span>
         </div>
-        <div class="text-xs md:text-sm font-semibold bg-white/90 px-3 py-1 rounded border border-cyan-500 text-slate-800">
-          Nhấp vào tháng bất kỳ để chuyển đến chấm công tháng đó
+        <div class="flex items-center gap-2">
+          <button type="button" id="btnAddYearQuick" class="no-print px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold shadow-xs transition flex items-center gap-1">
+            <i class="fa-solid fa-plus"></i> Thêm Năm Mới
+          </button>
+          <div
+            class="text-xs md:text-sm font-semibold bg-white/90 px-3 py-1 rounded border border-cyan-500 text-slate-800">
+            Nhấp vào tháng bất kỳ để chuyển đến chấm công tháng đó
+          </div>
         </div>
       </div>
 
@@ -790,7 +1051,8 @@
         </div>
         <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 shadow-2xs">
           <div class="text-xs text-amber-800 font-semibold uppercase">Tổng Thu Nhập Cả Năm (Gross)</div>
-          <div class="text-xl md:text-2xl font-bold text-amber-950 font-mono mt-1" id="kpiTotalGross">254.187.504 đ</div>
+          <div class="text-xl md:text-2xl font-bold text-amber-950 font-mono mt-1" id="kpiTotalGross">254.187.504 đ
+          </div>
           <div class="text-[11px] text-slate-500 mt-0.5">Bao gồm lương, OT, trợ cấp, thưởng</div>
         </div>
         <div class="bg-emerald-50 border border-emerald-300 rounded-xl p-3 shadow-2xs">
@@ -798,8 +1060,10 @@
             <span>TỔNG THỰC LĨNH CẢ NĂM (NET)</span>
             <i class="fa-solid fa-trophy text-emerald-600"></i>
           </div>
-          <div class="text-xl md:text-2xl font-bold text-emerald-800 font-mono mt-1" id="kpiTotalNet">242.505.504 đ</div>
-          <div class="text-[11px] text-emerald-700 font-semibold mt-0.5" id="kpiAvgNet">Bình quân: ~20.208.792 đ/tháng</div>
+          <div class="text-xl md:text-2xl font-bold text-emerald-800 font-mono mt-1" id="kpiTotalNet">242.505.504 đ
+          </div>
+          <div class="text-[11px] text-emerald-700 font-semibold mt-0.5" id="kpiAvgNet">Bình quân: ~20.208.792 đ/tháng
+          </div>
         </div>
       </div>
 
@@ -837,7 +1101,8 @@
               <td class="border border-black py-2.5 px-2 num-font text-right" id="sumBonusAllow">55.800.000</td>
               <td class="border border-black py-2.5 px-2 num-font text-right" id="sumGrossIncome">254.187.504</td>
               <td class="border border-black py-2.5 px-2 num-font text-right" id="sumDeductions">11.682.000</td>
-              <td class="border border-black py-2.5 px-2 num-font text-right text-base text-yellow-200" id="sumNetSalary">242.505.504</td>
+              <td class="border border-black py-2.5 px-2 num-font text-right text-base text-yellow-200"
+                id="sumNetSalary">242.505.504</td>
               <td class="border border-black py-2.5 px-2 no-print">-</td>
             </tr>
           </tfoot>
@@ -855,19 +1120,143 @@
         </div>
       </div>
 
+      <!-- ======================================================== -->
+      <!-- BẢNG TỔNG HỢP SO SÁNH THU NHẬP QUA CÁC NĂM (LƯU TRỮ ĐA NĂM) -->
+      <!-- ======================================================== -->
+      <div class="mt-6 border border-black shadow-sm rounded-lg overflow-hidden bg-white">
+        <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-900 text-white p-3 flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-amber-400">
+              <i class="fa-solid fa-layer-group text-lg"></i>
+            </div>
+            <div>
+              <h3 class="font-bold text-sm md:text-base tracking-wide flex items-center gap-2">
+                BẢNG TỔNG HỢP SO SÁNH THU NHẬP QUA CÁC NĂM
+                <span class="text-[10px] bg-amber-400 text-slate-950 px-2 py-0.5 rounded font-extrabold uppercase">Lưu trữ đa năm</span>
+              </h3>
+              <p class="text-[11px] text-slate-300">Dữ liệu của tất cả các năm được lưu độc lập, vĩnh viễn và tự động đồng bộ Cloud</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 no-print">
+            <button type="button" id="btnAddYearBtn" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded-lg font-semibold shadow-xs transition flex items-center gap-1.5">
+              <i class="fa-solid fa-calendar-plus"></i> Thêm Năm Mới
+            </button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs border-collapse">
+            <thead>
+              <tr class="bg-slate-800 text-white text-center font-bold">
+                <th class="border border-black py-2.5 px-3">Năm</th>
+                <th class="border border-black py-2.5 px-2">Công chuẩn</th>
+                <th class="border border-black py-2.5 px-2">Giờ thực tế</th>
+                <th class="border border-black py-2.5 px-2">Giờ OT</th>
+                <th class="border border-black py-2.5 px-2">Lương thời gian</th>
+                <th class="border border-black py-2.5 px-2">Tiền OT</th>
+                <th class="border border-black py-2.5 px-2">Phụ cấp & Thưởng</th>
+                <th class="border border-black py-2.5 px-2 bg-slate-900">TỔNG THU NHẬP (GROSS)</th>
+                <th class="border border-black py-2.5 px-2 text-rose-200">Giảm trừ BH</th>
+                <th class="border border-black py-2.5 px-3 bg-emerald-800 text-white">TỔNG THỰC LĨNH (NET)</th>
+                <th class="border border-black py-2.5 px-2">Bình quân / tháng</th>
+                <th class="border border-black py-2.5 px-2 no-print">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyMultiYearSummary">
+              <!-- Rendered dynamically via JS for each year -->
+            </tbody>
+            <tfoot id="tfootMultiYearSummary">
+              <!-- Grand totals for all years -->
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
     </div>
 
   </main>
 
   <!-- FOOTER -->
   <footer class="no-print max-w-[1750px] w-full mx-auto mt-4 text-center text-xs text-slate-500 py-2">
-    Bảng Chấm Công & Tính Lương Tự Động • Chọn Ca Thông Minh • Đầy Đủ Phụ Cấp Ca Đêm & Ăn Ca • Thống Kê 12 Tháng.
+    Bảng Chấm Công & Tính Lương Tự Động • Chọn Ca Thông Minh • Đầy Đủ Phụ Cấp Ca Đêm & Ăn Ca • Lưu Trữ Đa Năm.
   </footer>
+
+  <!-- MODAL: THÊM / SỬA NHÂN VIÊN -->
+  <div id="modalEmployee" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 hidden no-print">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full border border-slate-200 overflow-hidden transform transition-all">
+      <div class="bg-gradient-to-r from-blue-700 to-indigo-700 text-white px-5 py-3.5 flex items-center justify-between">
+        <h3 id="modalEmployeeTitle" class="font-bold text-base flex items-center gap-2">
+          <i class="fa-solid fa-user-plus"></i> Thêm Nhân Viên Mới
+        </h3>
+        <button type="button" id="btnCloseEmpModal" class="text-white/80 hover:text-white text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <form id="formEmployee" class="p-5 space-y-3.5 text-xs md:text-sm">
+        <input type="hidden" id="modalEmpMode" value="add">
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Họ và tên nhân viên: <span class="text-rose-500">*</span></label>
+          <input type="text" id="modalEmpName" required placeholder="Ví dụ: Trần Văn Nam"
+            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-medium outline-none">
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Bộ phận / Phòng ban:</label>
+          <input type="text" id="modalEmpDept" placeholder="Ví dụ: 工程部 (Bộ phận Kỹ thuật), Xưởng 1..."
+            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-medium outline-none">
+        </div>
+        <!-- KHỐI THÔNG TIN LƯƠNG, PHỤ CẤP & TÀI KHOẢN NGÂN HÀNG RIÊNG TỪNG NGƯỜI -->
+        <div id="modalSalaryRow" class="space-y-2.5 bg-slate-50 p-3 rounded-lg border border-slate-200">
+          <div class="text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5 border-b border-slate-200 pb-1">
+            <i class="fa-solid fa-file-invoice-dollar text-emerald-600"></i> Mức Lương, Phụ Cấp & Tài Khoản Riêng Biệt
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 text-xs mb-0.5">Lương cơ bản (LCB):</label>
+            <input type="number" id="modalEmpBaseSalary" step="50000" placeholder="6300000"
+              class="w-full px-2.5 py-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 font-mono font-bold text-blue-700 text-xs outline-none">
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block font-semibold text-slate-700 text-xs mb-0.5">Phụ cấp chức vụ (VNĐ):</label>
+              <input type="number" id="modalEmpPosAllowance" step="50000" placeholder="0"
+                class="w-full px-2.5 py-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 font-mono text-slate-800 text-xs outline-none">
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-700 text-xs mb-0.5">Thâm niên (VNĐ):</label>
+              <input type="number" id="modalEmpSenAllowance" step="50000" placeholder="0"
+                class="w-full px-2.5 py-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 font-mono text-slate-800 text-xs outline-none">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block font-semibold text-slate-700 text-xs mb-0.5">Số tài khoản (STK):</label>
+              <input type="text" id="modalEmpBankAccount" placeholder="Ví dụ: STK: 102..."
+                class="w-full px-2.5 py-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 font-medium text-slate-800 text-xs outline-none">
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-700 text-xs mb-0.5">Tên ngân hàng:</label>
+              <input type="text" id="modalEmpBankName" placeholder="Ví dụ: VietinBank, MB..."
+                class="w-full px-2.5 py-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 font-medium text-slate-800 text-xs outline-none">
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-500 italic">* Các thông số này lưu riêng cho từng người. Bạn cũng có thể sửa trực tiếp trên bảng tính bất kỳ lúc nào.</p>
+        </div>
+        <div class="pt-3 flex items-center justify-end gap-2 border-t border-slate-200">
+          <button type="button" id="btnCancelEmpModal" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition">
+            Hủy bỏ
+          </button>
+          <button type="submit" id="btnSaveEmpModal" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-sm transition flex items-center gap-1.5">
+            <i class="fa-solid fa-check"></i> Xác nhận
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <!-- TOAST NOTIFICATION CONTAINER -->
   <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
   <!-- SCRIPT (Thêm version để chống kẹt cache trình duyệt khi deploy) -->
-  <script src="app.js?v=20261117_v11"></script>
+  <script src="app.js?v=20261118_v17"></script>
 </body>
+
 </html>
