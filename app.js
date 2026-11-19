@@ -7,12 +7,15 @@ const VIETNAMESE_WEEKDAYS = [
   "Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"
 ];
 
-// Current State
-let currentMonth = 12;
-let currentYear = 2026;
+// Current State (Mặc định lấy đúng tháng và năm hiện tại của hệ thống)
+const _initialNow = new Date();
+let currentMonth = _initialNow.getMonth() + 1;
+let currentYear = _initialNow.getFullYear();
 let currentView = "unified"; // 'unified' or 'summary'
+let filterOnlyWorkedMonths = true; // Mặc định: Chỉ hiện các tháng có dữ liệu chấm công
 window.currentMonth = currentMonth;
 window.currentYear = currentYear;
+window.filterOnlyWorkedMonths = filterOnlyWorkedMonths;
 
 // All 12 months data store
 let monthlyStore = {};
@@ -461,23 +464,25 @@ window.deleteCurrentEmployee = deleteCurrentEmployee;
 window.setupEmployeeEventListeners = setupEmployeeEventListeners;
 
 function getAvailableYearsList() {
-  const yearsSet = new Set([2024, 2025, 2026, currentYear]);
+  const yearsSet = new Set([currentYear]);
   Object.keys(allYearsStore).forEach(y => {
     const n = parseInt(y);
     if (n && n >= 2000 && n <= 2100) yearsSet.add(n);
   });
+  if (employeesDataStore[currentEmpId] && employeesDataStore[currentEmpId].years) {
+    Object.keys(employeesDataStore[currentEmpId].years).forEach(y => {
+      const n = parseInt(y);
+      if (n && n >= 2000 && n <= 2100) yearsSet.add(n);
+    });
+  }
   try {
-    const savedList = localStorage.getItem("app_available_years");
-    if (savedList) {
-      JSON.parse(savedList).forEach(y => {
-        const n = parseInt(y);
-        if (n && n >= 2000 && n <= 2100) yearsSet.add(n);
-      });
-    }
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       const m = k.match(/^(?:att|cfg)_(\d{4})_\d+$/);
-      if (m) yearsSet.add(parseInt(m[1]));
+      if (m) {
+        const yr = parseInt(m[1]);
+        if (yr >= 2000 && yr <= 2100) yearsSet.add(yr);
+      }
     }
   } catch(e) {}
   const sorted = Array.from(yearsSet).sort((a, b) => a - b);
@@ -499,6 +504,44 @@ function addAvailableYear(y) {
     } catch(e) {}
   }
 }
+
+window.deleteYear = async function(y) {
+  y = parseInt(y);
+  if (!y) return;
+  if (y === currentYear) {
+    showToast("⚠️ Không thể xóa năm đang mở. Vui lòng chuyển sang năm khác trước!", "info");
+    return;
+  }
+  if (!confirm(`Bạn có chắc chắn muốn xóa toàn bộ dữ liệu của Năm ${y}? Thao tác này không thể hoàn tác.`)) {
+    return;
+  }
+  delete allYearsStore[y];
+  if (employeesDataStore[currentEmpId] && employeesDataStore[currentEmpId].years) {
+    delete employeesDataStore[currentEmpId].years[y];
+  }
+  for (let m = 1; m <= 12; m++) {
+    localStorage.removeItem(`att_${y}_${m}`);
+    localStorage.removeItem(`cfg_${y}_${m}`);
+  }
+  try {
+    const saved = localStorage.getItem("app_available_years");
+    if (saved) {
+      const list = JSON.parse(saved).filter(item => parseInt(item) !== y);
+      localStorage.setItem("app_available_years", JSON.stringify(list));
+    }
+  } catch(e) {}
+
+  // Xóa trên Firebase nếu có
+  try {
+    await fetch(`${FIREBASE_DB_URL.replace('.json', '')}/years/${y}.json`, { method: "DELETE" });
+  } catch(e) {}
+
+  renderEmployeeSelect();
+  renderYearSummary();
+  renderMultiYearSummary();
+  flushAutoSave();
+  showToast(`🗑️ Đã xóa thành công Năm ${y}!`);
+};
 
 function saveYearToMemoryAndStorage(year) {
   if (!year) year = currentYear;
@@ -1048,23 +1091,9 @@ function initializeDefaultData() {
       }
     }
 
-    // 2. NẾU CHƯA CÓ LƯU THÌ MỚI DÙNG DỮ LIỆU MẪU BAN ĐẦU:
-    if (currentEmpId === "emp_default" && m === 12) {
-      // Month 12: Day Shift sample (Image 2)
-      for (let d = 1; d <= totalDays; d++) {
-        const isSun = (new Date(currentYear, 11, d).getDay() === 0);
-        if (isSun) {
-          monthlyStore[m][d] = { shift: "off", std: "", actual: "", ot130: "", ot150: 3, ot200: "", ot210: "", ot270: "", ot300: "" };
-        } else if ([3, 10, 17].includes(d)) {
-          monthlyStore[m][d] = { shift: "day", std: 8, actual: 8, ot130: "", ot150: "", ot200: 11, ot210: "", ot270: "", ot300: "" };
-        } else if (d === 24) {
-          monthlyStore[m][d] = { shift: "day", std: 8, actual: 8, ot130: "", ot150: "", ot200: "", ot210: "", ot270: "", ot300: "" };
-        } else {
-          monthlyStore[m][d] = { shift: "day", std: 8, actual: 8, ot130: "", ot150: 3, ot200: "", ot210: "", ot270: "", ot300: "" };
-        }
-      }
-    } else if (currentEmpId === "emp_default" && m === 11) {
-      // Month 11: Night Shift sample (Khớp chính xác 100% Ảnh 1)
+    // 2. CHỈ NẠP DỮ LIỆU THỰC TẾ CHO NĂM 2026 THÁNG 11 (Không nạp cho các năm mới hay tháng tương lai)
+    if (currentYear === 2026 && currentEmpId === "emp_default" && m === 11) {
+      // Month 11/2026: Night Shift thực tế (Khớp chính xác 100% Ảnh 1)
       for (let d = 1; d <= totalDays; d++) {
         const isSun = (new Date(currentYear, 10, d).getDay() === 0);
         if (isSun) {
@@ -1088,7 +1117,7 @@ function initializeDefaultData() {
         }
       }
     } else {
-      // Nhân viên mới hoặc các tháng khác: Khởi tạo bảng công sạch sẽ
+      // Các tháng khác và các năm mới: Khởi tạo bảng công sạch sẽ, KHÔNG ĐƯỢC TỰ ĐIỀN GIỜ
       for (let d = 1; d <= totalDays; d++) {
         const isSun = (new Date(currentYear, m - 1, d).getDay() === 0);
         monthlyStore[m][d] = {
@@ -1146,7 +1175,18 @@ function renderUnifiedTable() {
     const dayName = `${day} - ${VIETNAMESE_WEEKDAYS[dayOfWeek]}`;
 
     if (!currentMonthData[day]) {
-      applyShiftToDay(currentMonth, day, isSunday ? "off" : "day");
+      currentMonthData[day] = {
+        shift: isSunday ? "off" : "",
+        std: isSunday ? "" : 8,
+        actual: "",
+        ot130: "",
+        ot150: "",
+        ot200: "",
+        ot210: "",
+        ot270: "",
+        ot300: "",
+        ot390: ""
+      };
     }
     const rData = currentMonthData[day];
     const parsedAct = parseLeaveAndHours(rData.actual);
@@ -1154,7 +1194,7 @@ function renderUnifiedTable() {
     const shiftUpper = (rData.shift || "").toString().trim().toUpperCase();
     const leaveCode = parsedAct.code || parsedStd.code || (LEAVE_CODES.includes(shiftUpper) ? shiftUpper : null);
 
-    const shift = rData.shift || (parseVal(rData.ot130) > 0 ? "night" : (leaveCode ? leaveCode : (parseVal(rData.actual) > 0 ? "day" : "off")));
+    const shift = rData.shift || (parseVal(rData.ot130) > 0 ? "night" : (leaveCode ? leaveCode : (parseVal(rData.actual) > 0 ? "day" : (isSunday ? "off" : ""))));
     if (shift === "night" || parseVal(rData.ot130) > 0) countNightShifts++;
 
     const rawAct = (rData.actual !== undefined && rData.actual !== null) ? rData.actual.toString().trim().toUpperCase() : "";
@@ -1166,7 +1206,7 @@ function renderUnifiedTable() {
     tr.className = `border-b border-black text-center ${isSunday ? "bg-green-highlight" : "hover:bg-blue-50/50"}`;
 
     tr.innerHTML = `
-      <td class="border-r border-black py-1 px-1 font-semibold whitespace-nowrap text-left">${dayName}</td>
+      <td class="border-r border-black py-1 px-1 font-semibold whitespace-nowrap text-left sticky-col-left">${dayName}</td>
       <td class="border-r border-black py-1 px-1 no-print whitespace-nowrap">
         <div class="inline-flex items-center gap-1">
           <button type="button" onclick="setDayShift(${day}, 'day')" class="shift-btn ${shift === 'day' ? 'shift-day-active' : 'bg-white hover:bg-yellow-50 text-slate-700 border border-slate-300'}" title="Tự điền Ca Ngày (8h + 3h OT)">☀️</button>
@@ -1265,6 +1305,31 @@ function attachTableInputs() {
   });
 }
 
+// Kiểm tra tháng có dữ liệu chấm công thực tế hay không
+function hasMonthAttendanceData(mData) {
+  if (!mData || typeof mData !== "object") return false;
+  for (const day in mData) {
+    const d = mData[day];
+    if (!d) continue;
+    if (d.actual !== undefined && d.actual !== null && d.actual.toString().trim() !== "") {
+      const parsed = parseLeaveAndHours(d.actual);
+      if (parsed.hours > 0 || parsed.code) return true;
+    }
+    if (parseVal(d.ot130) > 0 || parseVal(d.ot150) > 0 || parseVal(d.ot200) > 0 ||
+        parseVal(d.ot210) > 0 || parseVal(d.ot270) > 0 || parseVal(d.ot300) > 0 || parseVal(d.ot390) > 0) {
+      return true;
+    }
+    if (d.shift && !["off", ""].includes(d.shift)) {
+      if (d.shift === "day" || d.shift === "night") {
+        if (d.actual !== "") return true;
+      } else {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 // ========================================================
 // TÍNH LƯƠNG TỰ ĐỘNG CHUẨN XÁC:
 // LƯƠNG THỜI GIAN = ĐƠN GIÁ 1 GIỜ x SỐ GIỜ LÀM (100%)
@@ -1286,6 +1351,75 @@ function calculateSalaryForMonth(monthNum, targetYear = currentYear) {
   } else {
     mData = getMonthDataForYear(targetYear, monthNum) || {};
     cfg = getMonthConfigForYear(targetYear, monthNum);
+  }
+
+
+  // 1. Lương cơ bản & các phụ cấp lương của riêng tháng này
+  const baseSalary = (cfg.baseSalary !== undefined && cfg.baseSalary !== null) ? cfg.baseSalary : 6300000;
+  const posAllowance = (cfg.positionAllowance !== undefined && cfg.positionAllowance !== null) ? cfg.positionAllowance : 2450000;
+  const senAllowance = (cfg.seniorityAllowance !== undefined && cfg.seniorityAllowance !== null) ? cfg.seniorityAllowance : 100000;
+  const kpiCoeff = (cfg.kpiCoeff !== undefined && cfg.kpiCoeff !== null) ? cfg.kpiCoeff : 1.0;
+
+  // 2. Công chuẩn, Giờ tiêu chuẩn và Đơn giá 1 giờ
+  const stdDays = getStandardWorkDays(targetYear, monthNum);
+  const stdHours = stdDays * 8;
+  const insSalary = baseSalary + posAllowance + senAllowance;
+  
+  // ĐƠN GIÁ 1 GIỜ = Lương đóng BH / Số giờ tiêu chuẩn
+  const exactHourlyRate = stdHours > 0 ? (insSalary / stdHours) : 0;
+  const hourlyRate = Math.round(exactHourlyRate);
+
+  // NẾU THÁNG NÀY HOÀN TOÀN CHƯA CÓ CHẤM CÔNG (Tháng tương lai hoặc năm mới chưa làm):
+  // KHÔNG TỰ TÍNH TIỀN LƯƠNG, PHỤ CẤP VÀ THƯỞNG ẢO
+  const hasData = hasMonthAttendanceData(mData);
+  if (!hasData) {
+    return {
+      hasData: false,
+      month: monthNum,
+      year: targetYear,
+      baseSalary,
+      posAllowance,
+      senAllowance,
+      kpiCoeff,
+      stdDays,
+      stdHours,
+      hourlyRate,
+      insSalary,
+      totStd: 0,
+      totActual: 0,
+      tot130: 0, tot150: 0, tot200: 0, tot210: 0, tot270: 0, tot300: 0, tot390: 0,
+      totalOTHours: 0,
+      amountDay: 0,
+      totalOTAmount: 0,
+      rate130: 0, amount130: 0,
+      rate150: 0, amount150: 0,
+      rate200: 0, amount200: 0,
+      rate210: 0, amount210: 0,
+      rate270: 0, amount270: 0,
+      rate300: 0, amount300: 0,
+      rate390: 0, amount390: 0,
+      nightShifts: 0,
+      nightSubsidy: 0,
+      mealNight: 0,
+      totalAllowance: 0,
+      bonusAtt: 0,
+      amountKPI: 0,
+      stdTotalBonus: 0,
+      totalBonus: 0,
+      grossIncome: 0,
+      deductBHXH: 0,
+      deductBHYT: 0,
+      deductBHTN: 0,
+      deductKPCĐ: 0,
+      deductTNCN: 0,
+      taxableIncome: 0,
+      isTaxExempt: true,
+      totalDeductions: 0,
+      netSalary: 0,
+      workedDays: 0,
+      countP: 0, countL: 0, countNB: 0, countN: 0, countKL: 0, countTD: 0,
+      isFullAttendance: false
+    };
   }
 
   let totStd = 0, totActual = 0, tot130 = 0, tot150 = 0, tot200 = 0, tot210 = 0, tot270 = 0, tot300 = 0, tot390 = 0;
@@ -1351,20 +1485,6 @@ function calculateSalaryForMonth(monthNum, targetYear = currentYear) {
   // Tổng giờ công chuẩn thực tế (bao gồm cả giờ làm thực tế, nghỉ có lương và giờ ca đêm 130%)
   const totalBaseWorkedHours = totActual + tot130;
 
-  // 1. Lương cơ bản & các phụ cấp lương của riêng tháng này
-  const baseSalary = (cfg.baseSalary !== undefined && cfg.baseSalary !== null) ? cfg.baseSalary : 6300000;
-  const posAllowance = (cfg.positionAllowance !== undefined && cfg.positionAllowance !== null) ? cfg.positionAllowance : 2450000;
-  const senAllowance = (cfg.seniorityAllowance !== undefined && cfg.seniorityAllowance !== null) ? cfg.seniorityAllowance : 100000;
-  const kpiCoeff = (cfg.kpiCoeff !== undefined && cfg.kpiCoeff !== null) ? cfg.kpiCoeff : 1.0;
-
-  // 2. Công chuẩn, Giờ tiêu chuẩn và Đơn giá 1 giờ
-  const stdDays = getStandardWorkDays(targetYear, monthNum);
-  const stdHours = stdDays * 8;
-  const insSalary = baseSalary + posAllowance + senAllowance;
-  
-  // ĐƠN GIÁ 1 GIỜ = Lương đóng BH / Số giờ tiêu chuẩn
-  const exactHourlyRate = stdHours > 0 ? (insSalary / stdHours) : 0;
-  const hourlyRate = Math.round(exactHourlyRate);
 
   // 3. I. LƯƠNG LÀM VIỆC THỜI GIAN (100%)
   // Công thức: Đơn giá 1 giờ x Số giờ làm thực tế
@@ -1480,6 +1600,9 @@ function calculateSalaryForMonth(monthNum, targetYear = currentYear) {
   const netSalary = grossIncome - totalDeductions;
 
   return {
+    hasData: true,
+    month: monthNum,
+    year: targetYear,
     baseSalary, posAllowance, senAllowance, kpiCoeff,
     stdDays, stdHours, exactHourlyRate, hourlyRate, insSalary, nightShifts,
     workedDays, totalBaseWorkedHours, isFullAttendance, bonusAtt,
@@ -1673,6 +1796,10 @@ function recalculateMonth(nightShiftsCount) {
 
   // Part VII: Net Salary
   document.getElementById("netSalary").innerText = formatMoney(calc.netSalary);
+  const mobileBottomNet = document.getElementById("mobileBottomNet");
+  if (mobileBottomNet) {
+    mobileBottomNet.innerText = `${formatMoney(calc.netSalary)} đ`;
+  }
 
   // Update Formula breakdown card
   document.getElementById("fHourly").innerText = `${formatMoney(calc.hourlyRate)} đ`;
@@ -1705,46 +1832,73 @@ function renderYearSummary() {
   let yearStdDays = 0, yearActualHours = 0, yearOTHours = 0;
   let yearDayWages = 0, yearOTWages = 0, yearBonusAllow = 0;
   let yearGross = 0, yearDeductions = 0, yearNet = 0;
+  let workedMonthsCount = 0;
+  let visibleRowsCount = 0;
 
   const monthlyNets = [];
 
   for (let m = 1; m <= 12; m++) {
     const calc = calculateSalaryForMonth(m);
-    monthlyNets.push({ month: m, net: calc.netSalary });
+    monthlyNets.push({ month: m, net: calc.netSalary, hasData: calc.hasData });
 
-    yearStdDays += calc.stdDays;
-    yearActualHours += calc.totActual;
-    yearOTHours += calc.totalOTHours;
-    yearDayWages += calc.amountDay;
-    yearOTWages += calc.totalOTAmount;
-    yearBonusAllow += (calc.totalAllowance + calc.totalBonus);
-    yearGross += calc.grossIncome;
-    yearDeductions += calc.totalDeductions;
-    yearNet += calc.netSalary;
+    if (calc.hasData) {
+      workedMonthsCount++;
+      yearStdDays += calc.stdDays;
+      yearActualHours += calc.totActual;
+      yearOTHours += calc.totalOTHours;
+      yearDayWages += calc.amountDay;
+      yearOTWages += calc.totalOTAmount;
+      yearBonusAllow += (calc.totalAllowance + calc.totalBonus);
+      yearGross += calc.grossIncome;
+      yearDeductions += calc.totalDeductions;
+      yearNet += calc.netSalary;
+    }
+
+    const isHidden = filterOnlyWorkedMonths && !calc.hasData;
+    if (!isHidden) visibleRowsCount++;
 
     const tr = document.createElement("tr");
     const isCur = (m === currentMonth);
-    tr.className = `border-b border-black text-center ${isCur ? "bg-amber-100/90 font-bold ring-2 ring-inset ring-amber-400" : "hover:bg-slate-50"}`;
+    tr.className = `border-b border-black text-center ${isCur ? "bg-amber-100/90 font-bold ring-2 ring-inset ring-amber-400" : (calc.hasData ? "hover:bg-slate-50" : "bg-slate-50/40 text-slate-400 hover:bg-slate-100")} ${isHidden ? "hidden" : ""}`;
 
     tr.innerHTML = `
-      <td class="border-r border-black py-2 px-2 font-bold text-slate-900">Tháng ${m} ${isCur ? "<span class='text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded font-bold ml-1 shadow-2xs'>Đang xem T" + m + "</span>" : ""}</td>
-      <td class="border-r border-black py-2 px-2 num-font text-right font-semibold text-slate-800 bg-slate-50/50">${formatMoney(calc.baseSalary)}</td>
-      <td class="border-r border-black py-2 px-1 num-font">${calc.stdDays} ngày</td>
-      <td class="border-r border-black py-2 px-1 num-font text-blue-800 font-semibold">${formatHours(calc.totActual)} h</td>
-      <td class="border-r border-black py-2 px-1 num-font text-purple-800 font-semibold">${formatHours(calc.totalOTHours)} h</td>
-      <td class="border-r border-black py-2 px-2 num-font text-right">${formatMoney(calc.amountDay)}</td>
-      <td class="border-r border-black py-2 px-2 num-font text-right text-purple-700">${formatMoney(calc.totalOTAmount)}</td>
-      <td class="border-r border-black py-2 px-2 num-font text-right text-emerald-700">${formatMoney(calc.totalAllowance + calc.totalBonus)}</td>
-      <td class="border-r border-black py-2 px-2 num-font text-right font-bold text-slate-900">${formatMoney(calc.grossIncome)}</td>
-      <td class="border-r border-black py-2 px-2 num-font text-right text-rose-700">${formatMoney(calc.totalDeductions)}</td>
-      <td class="border-r border-black py-2 px-2 num-font text-right font-bold text-emerald-800 text-sm bg-emerald-50/50">${formatMoney(calc.netSalary)}</td>
+      <td class="border-r border-black py-2 px-2 font-bold ${calc.hasData ? 'text-slate-900' : 'text-slate-500'} sticky-col-left bg-inherit">
+        Tháng ${m} ${isCur ? "<span class='text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded font-bold ml-1 shadow-2xs'>Đang xem T" + m + "</span>" : ""}
+      </td>
+      <td class="border-r border-black py-2 px-2 num-font text-right font-semibold ${calc.hasData ? 'text-slate-800' : 'text-slate-400'} bg-slate-50/50">${formatMoney(calc.baseSalary)}</td>
+      <td class="border-r border-black py-2 px-1 num-font ${calc.hasData ? '' : 'text-slate-400'}">${calc.stdDays} ngày</td>
+      <td class="border-r border-black py-2 px-1 num-font ${calc.hasData ? 'text-blue-800 font-semibold' : 'text-slate-400'}">${calc.hasData ? formatHours(calc.totActual) + ' h' : '-'}</td>
+      <td class="border-r border-black py-2 px-1 num-font ${calc.hasData ? 'text-purple-800 font-semibold' : 'text-slate-400'}">${calc.hasData ? formatHours(calc.totalOTHours) + ' h' : '-'}</td>
+      <td class="border-r border-black py-2 px-2 num-font text-right ${calc.hasData ? '' : 'text-slate-400'}">${calc.hasData ? formatMoney(calc.amountDay) : '-'}</td>
+      <td class="border-r border-black py-2 px-2 num-font text-right ${calc.hasData ? 'text-purple-700' : 'text-slate-400'}">${calc.hasData ? formatMoney(calc.totalOTAmount) : '-'}</td>
+      <td class="border-r border-black py-2 px-2 num-font text-right ${calc.hasData ? 'text-emerald-700' : 'text-slate-400'}">${calc.hasData ? formatMoney(calc.totalAllowance + calc.totalBonus) : '-'}</td>
+      <td class="border-r border-black py-2 px-2 num-font text-right ${calc.hasData ? 'font-bold text-slate-900' : 'text-slate-400'}">${calc.hasData ? formatMoney(calc.grossIncome) : '-'}</td>
+      <td class="border-r border-black py-2 px-2 num-font text-right ${calc.hasData ? 'text-rose-700' : 'text-slate-400'}">${calc.hasData ? formatMoney(calc.totalDeductions) : '-'}</td>
+      <td class="border-r border-black py-2 px-2 num-font text-right font-bold ${calc.hasData ? 'text-emerald-800 text-sm bg-emerald-50/50' : 'text-slate-400 text-xs italic'}">
+        ${calc.hasData ? formatMoney(calc.netSalary) : 'Chưa chấm công'}
+      </td>
       <td class="border-r border-black py-1 px-1 no-print">
-        <button onclick="goToMonth(${m})" class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[11px] rounded shadow-2xs transition">
-          <i class="fa-solid fa-pen-to-square"></i> Xem/Sửa
+        <button onclick="goToMonth(${m})" class="px-2 py-1 ${calc.hasData ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-slate-200 hover:bg-blue-600 hover:text-white text-slate-700'} text-[11px] rounded shadow-2xs transition">
+          <i class="fa-solid fa-pen-to-square"></i> ${calc.hasData ? 'Xem/Sửa' : 'Nhập công'}
         </button>
       </td>
     `;
     tbody.appendChild(tr);
+  }
+
+  // Nếu đang lọc chỉ hiện tháng có dữ liệu mà năm này chưa có tháng nào làm:
+  if (visibleRowsCount === 0) {
+    const trEmpty = document.createElement("tr");
+    trEmpty.innerHTML = `
+      <td colspan="12" class="py-8 text-center text-slate-500 font-medium bg-slate-50/50">
+        <i class="fa-solid fa-calendar-xmark text-amber-500 text-lg mb-1 block"></i>
+        <span>Năm <b>${currentYear}</b> chưa có tháng nào được chấm công.</span><br>
+        <button onclick="goToMonth(1)" class="mt-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold shadow-xs transition">
+          <i class="fa-solid fa-pen"></i> Chấm công Tháng 1/${currentYear}
+        </button>
+      </td>
+    `;
+    tbody.appendChild(trEmpty);
   }
 
   document.getElementById("sumStdDays").innerText = `${yearStdDays} ngày`;
@@ -1761,8 +1915,8 @@ function renderYearSummary() {
   document.getElementById("kpiTotalOTHours").innerText = `${formatHours(yearOTHours)} h`;
   document.getElementById("kpiTotalGross").innerText = `${formatMoney(yearGross)} đ`;
   document.getElementById("kpiTotalNet").innerText = `${formatMoney(yearNet)} đ`;
-  const avgNet = Math.round(yearNet / 12);
-  document.getElementById("kpiAvgNet").innerText = `Bình quân: ~${formatMoney(avgNet)} đ/tháng`;
+  const avgNet = workedMonthsCount > 0 ? Math.round(yearNet / workedMonthsCount) : 0;
+  document.getElementById("kpiAvgNet").innerText = `Bình quân: ~${formatMoney(avgNet)} đ/tháng (${workedMonthsCount} tháng đã làm)`;
 
   renderVisualChart(monthlyNets);
   renderMultiYearSummary();
@@ -1772,22 +1926,27 @@ function calculateYearTotal(targetYear) {
   let yearStdDays = 0, yearActualHours = 0, yearOTHours = 0;
   let yearDayWages = 0, yearOTWages = 0, yearBonusAllow = 0;
   let yearGross = 0, yearDeductions = 0, yearNet = 0;
+  let workedMonths = 0;
 
   for (let m = 1; m <= 12; m++) {
     const calc = calculateSalaryForMonth(m, targetYear);
-    yearStdDays += calc.stdDays;
-    yearActualHours += calc.totActual;
-    yearOTHours += calc.totalOTHours;
-    yearDayWages += calc.amountDay;
-    yearOTWages += calc.totalOTAmount;
-    yearBonusAllow += (calc.totalAllowance + calc.totalBonus);
-    yearGross += calc.grossIncome;
-    yearDeductions += calc.totalDeductions;
-    yearNet += calc.netSalary;
+    if (calc.hasData) {
+      workedMonths++;
+      yearStdDays += calc.stdDays;
+      yearActualHours += calc.totActual;
+      yearOTHours += calc.totalOTHours;
+      yearDayWages += calc.amountDay;
+      yearOTWages += calc.totalOTAmount;
+      yearBonusAllow += (calc.totalAllowance + calc.totalBonus);
+      yearGross += calc.grossIncome;
+      yearDeductions += calc.totalDeductions;
+      yearNet += calc.netSalary;
+    }
   }
 
   return {
     year: targetYear,
+    workedMonths,
     yearStdDays,
     yearActualHours,
     yearOTHours,
@@ -1797,7 +1956,7 @@ function calculateYearTotal(targetYear) {
     yearGross,
     yearDeductions,
     yearNet,
-    avgNet: Math.round(yearNet / 12)
+    avgNet: workedMonths > 0 ? Math.round(yearNet / workedMonths) : 0
   };
 }
 
@@ -1825,6 +1984,7 @@ function renderMultiYearSummary() {
   let grandStdDays = 0, grandActualHours = 0, grandOTHours = 0;
   let grandDayWages = 0, grandOTWages = 0, grandBonusAllow = 0;
   let grandGross = 0, grandDeductions = 0, grandNet = 0;
+  let grandWorkedMonths = 0;
 
   years.forEach(y => {
     const total = calculateYearTotal(y);
@@ -1837,29 +1997,33 @@ function renderMultiYearSummary() {
     grandGross += total.yearGross;
     grandDeductions += total.yearDeductions;
     grandNet += total.yearNet;
+    grandWorkedMonths += total.workedMonths;
 
     const isCurrent = (y === currentYear);
     const tr = document.createElement("tr");
     tr.className = `border-b border-black text-center ${isCurrent ? "bg-amber-100/90 font-bold ring-2 ring-inset ring-amber-400" : "hover:bg-slate-50"}`;
 
     tr.innerHTML = `
-      <td class="border-r border-black py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap">
+      <td class="border-r border-black py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap sticky-col-left bg-inherit">
         Năm ${y} ${isCurrent ? "<span class='text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded font-bold ml-1 shadow-2xs'>Đang xem</span>" : ""}
       </td>
-      <td class="border-r border-black py-2 px-1 num-font">${total.yearStdDays} ngày</td>
-      <td class="border-r border-black py-2 px-1 num-font text-blue-800 font-semibold">${formatHours(total.yearActualHours)} h</td>
-      <td class="border-r border-black py-2 px-1 num-font text-purple-800 font-semibold">${formatHours(total.yearOTHours)} h</td>
-      <td class="border-r border-black py-2 px-2 num-font text-right">${formatMoney(total.yearDayWages)}</td>
-      <td class="border-r border-black py-2 px-2 num-font text-right text-purple-700">${formatMoney(total.yearOTWages)}</td>
-      <td class="border-r border-black py-2 px-2 num-font text-right text-emerald-700">${formatMoney(total.yearBonusAllow)}</td>
-      <td class="border-r border-black py-2 px-2 num-font text-right font-bold text-slate-900">${formatMoney(total.yearGross)}</td>
-      <td class="border-r border-black py-2 px-2 num-font text-right text-rose-700">${formatMoney(total.yearDeductions)}</td>
-      <td class="border-r border-black py-2 px-2 num-font text-right font-bold text-emerald-800 text-sm bg-emerald-50/50">${formatMoney(total.yearNet)}</td>
-      <td class="border-r border-black py-2 px-2 num-font text-right font-semibold text-slate-700">~${formatMoney(total.avgNet)} đ</td>
+      <td class="border-r border-black py-2 px-1 num-font ${total.workedMonths > 0 ? '' : 'text-slate-400'}">${total.yearStdDays} ngày</td>
+      <td class="border-r border-black py-2 px-1 num-font ${total.workedMonths > 0 ? 'text-blue-800 font-semibold' : 'text-slate-400'}">${total.workedMonths > 0 ? formatHours(total.yearActualHours) + ' h' : '-'}</td>
+      <td class="border-r border-black py-2 px-1 num-font ${total.workedMonths > 0 ? 'text-purple-800 font-semibold' : 'text-slate-400'}">${total.workedMonths > 0 ? formatHours(total.yearOTHours) + ' h' : '-'}</td>
+      <td class="border-r border-black py-2 px-2 num-font text-right ${total.workedMonths > 0 ? '' : 'text-slate-400'}">${total.workedMonths > 0 ? formatMoney(total.yearDayWages) : '-'}</td>
+      <td class="border-r border-black py-2 px-2 num-font text-right ${total.workedMonths > 0 ? 'text-purple-700' : 'text-slate-400'}">${total.workedMonths > 0 ? formatMoney(total.yearOTWages) : '-'}</td>
+      <td class="border-r border-black py-2 px-2 num-font text-right ${total.workedMonths > 0 ? 'text-emerald-700' : 'text-slate-400'}">${total.workedMonths > 0 ? formatMoney(total.yearBonusAllow) : '-'}</td>
+      <td class="border-r border-black py-2 px-2 num-font text-right ${total.workedMonths > 0 ? 'font-bold text-slate-900' : 'text-slate-400'}">${total.workedMonths > 0 ? formatMoney(total.yearGross) : '-'}</td>
+      <td class="border-r border-black py-2 px-2 num-font text-right ${total.workedMonths > 0 ? 'text-rose-700' : 'text-slate-400'}">${total.workedMonths > 0 ? formatMoney(total.yearDeductions) : '-'}</td>
+      <td class="border-r border-black py-2 px-2 num-font text-right font-bold ${total.workedMonths > 0 ? 'text-emerald-800 text-sm bg-emerald-50/50' : 'text-slate-400 italic text-xs'}">${total.workedMonths > 0 ? formatMoney(total.yearNet) : 'Chưa có dữ liệu'}</td>
+      <td class="border-r border-black py-2 px-2 num-font text-right ${total.workedMonths > 0 ? 'font-semibold text-slate-700' : 'text-slate-400'}">${total.workedMonths > 0 ? '~' + formatMoney(total.avgNet) + ' đ' : '-'}</td>
       <td class="border-r border-black py-1 px-1 no-print whitespace-nowrap">
         ${isCurrent ? "<span class='text-xs text-slate-400 italic font-normal'>Đang xem</span>" : `
-          <button onclick="switchYear(${y})" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[11px] rounded shadow-2xs transition font-semibold">
+          <button onclick="switchYear(${y})" class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[11px] rounded shadow-2xs transition font-semibold" title="Mở năm ${y}">
             <i class="fa-solid fa-folder-open"></i> Xem Năm ${y}
+          </button>
+          <button onclick="deleteYear(${y})" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-300 text-[11px] rounded shadow-2xs transition ml-1" title="Xóa năm ${y}">
+            <i class="fa-solid fa-trash-can"></i> Xóa
           </button>
         `}
       </td>
@@ -1868,10 +2032,10 @@ function renderMultiYearSummary() {
   });
 
   if (tfoot) {
-    const avgAllNet = years.length > 0 ? Math.round(grandNet / (years.length * 12)) : 0;
+    const avgAllNet = grandWorkedMonths > 0 ? Math.round(grandNet / grandWorkedMonths) : 0;
     tfoot.innerHTML = `
       <tr class="bg-slate-900 text-white font-bold text-center text-xs md:text-sm">
-        <td class="border border-black py-2.5 px-3">TỔNG (${years.length} NĂM)</td>
+        <td class="border border-black py-2.5 px-3 sticky-col-left bg-slate-900 text-white">TỔNG (${years.length} NĂM)</td>
         <td class="border border-black py-2 px-1 num-font">${grandStdDays} ngày</td>
         <td class="border border-black py-2 px-1 num-font">${formatHours(grandActualHours)} h</td>
         <td class="border border-black py-2 px-1 num-font">${formatHours(grandOTHours)} h</td>
@@ -1881,7 +2045,7 @@ function renderMultiYearSummary() {
         <td class="border border-black py-2 px-2 num-font text-right text-amber-300 font-bold">${formatMoney(grandGross)}</td>
         <td class="border border-black py-2 px-2 num-font text-right text-rose-300">${formatMoney(grandDeductions)}</td>
         <td class="border border-black py-2.5 px-3 num-font text-right text-base text-yellow-300 font-extrabold bg-emerald-950">${formatMoney(grandNet)}</td>
-        <td class="border border-black py-2 px-2 num-font text-right text-slate-300">~${formatMoney(avgAllNet)} đ/th</td>
+        <td class="border border-black py-2 px-2 num-font text-right text-slate-300">${grandWorkedMonths > 0 ? '~' + formatMoney(avgAllNet) + ' đ/th' : '-'}</td>
         <td class="border border-black py-2 px-1 no-print">-</td>
       </tr>
     `;
@@ -1938,10 +2102,12 @@ function renderVisualChart(data) {
   const container = document.getElementById("chartContainer");
   container.innerHTML = "";
 
-  const maxVal = Math.max(...data.map(d => d.net), 25000000);
+  const validNets = data.filter(d => d.hasData && d.net > 0).map(d => d.net);
+  const maxVal = validNets.length > 0 ? Math.max(...validNets, 25000000) : 25000000;
 
   data.forEach(item => {
-    const heightPercent = Math.max(12, Math.round((item.net / maxVal) * 100));
+    const isWorked = item.hasData && item.net > 0;
+    const heightPercent = isWorked ? Math.max(12, Math.round((item.net / maxVal) * 100)) : 4;
     const isCurrent = (item.month === currentMonth);
 
     const col = document.createElement("div");
@@ -1950,10 +2116,10 @@ function renderVisualChart(data) {
 
     col.innerHTML = `
       <div class="text-[10px] font-mono font-semibold text-slate-700 opacity-0 group-hover:opacity-100 transition mb-1 whitespace-nowrap">
-        ${(item.net / 1000000).toFixed(1)} tr
+        ${isWorked ? (item.net / 1000000).toFixed(1) + ' tr' : '-'}
       </div>
-      <div class="w-full max-w-[42px] rounded-t transition-all duration-300 ${isCurrent ? 'bg-amber-500 shadow-md ring-2 ring-amber-300' : 'bg-blue-600 hover:bg-blue-500'}" style="height: ${heightPercent}%;"></div>
-      <div class="text-[11px] font-bold mt-1.5 ${isCurrent ? 'text-amber-600 font-extrabold' : 'text-slate-600'}">
+      <div class="w-full max-w-[42px] rounded-t transition-all duration-300 ${!isWorked ? 'bg-slate-200 hover:bg-slate-300' : (isCurrent ? 'bg-amber-500 shadow-md ring-2 ring-amber-300' : 'bg-blue-600 hover:bg-blue-500')}" style="height: ${heightPercent}%;"></div>
+      <div class="text-[11px] font-bold mt-1.5 ${isCurrent ? 'text-amber-600 font-extrabold' : (isWorked ? 'text-slate-600' : 'text-slate-400 font-normal')}">
         T${item.month}
       </div>
     `;
@@ -2163,6 +2329,24 @@ if (btnAddYearQuick) {
 const btnAddYearBtn = document.getElementById("btnAddYearBtn");
 if (btnAddYearBtn) {
   btnAddYearBtn.addEventListener("click", promptAddNewYear);
+}
+
+// Bộ lọc hiển thị tháng trong Bảng Thống Kê 12 Tháng
+const btnFilterAllMonths = document.getElementById("btnFilterAllMonths");
+const btnFilterWorkedMonths = document.getElementById("btnFilterWorkedMonths");
+if (btnFilterAllMonths && btnFilterWorkedMonths) {
+  btnFilterAllMonths.addEventListener("click", () => {
+    filterOnlyWorkedMonths = false;
+    btnFilterAllMonths.className = "px-2.5 py-1 rounded font-bold transition bg-blue-600 text-white shadow-xs";
+    btnFilterWorkedMonths.className = "px-2.5 py-1 rounded font-semibold transition text-slate-700 hover:text-blue-700 flex items-center gap-1";
+    renderYearSummary();
+  });
+  btnFilterWorkedMonths.addEventListener("click", () => {
+    filterOnlyWorkedMonths = true;
+    btnFilterWorkedMonths.className = "px-2.5 py-1 rounded font-bold transition bg-blue-600 text-white shadow-xs flex items-center gap-1";
+    btnFilterAllMonths.className = "px-2.5 py-1 rounded font-semibold transition text-slate-700 hover:text-blue-700";
+    renderYearSummary();
+  });
 }
 
 // Salary parameter inputs
@@ -3069,10 +3253,114 @@ function listenFirebaseRealtime() {
   } catch (err) {}
 }
 
+// ========================================================
+// ĐIỀU KHIỂN GIAO DIỆN RESPONSIVE MOBILE & DESKTOP
+// ========================================================
+let currentMobileViewMode = "attendance"; // 'attendance' | 'salary' | 'both'
+
+function setMobileViewMode(mode) {
+  currentMobileViewMode = mode;
+  const colAtt = document.getElementById("colAttendance");
+  const colSal = document.getElementById("colSalary");
+  const btnAtt = document.getElementById("btnMobileShowAttendance");
+  const btnSal = document.getElementById("btnMobileShowSalary");
+  const btnBoth = document.getElementById("btnMobileShowBoth");
+  const jumpText = document.getElementById("mobileJumpBtnText");
+  const jumpIcon = document.getElementById("mobileJumpBtnIcon");
+
+  if (!colAtt || !colSal) return;
+
+  const activeClasses = ["bg-blue-600", "text-white", "shadow-xs"];
+  const inactiveClasses = ["text-slate-700", "hover:text-blue-700"];
+
+  function styleBtn(btn, isActive) {
+    if (!btn) return;
+    if (isActive) {
+      btn.classList.add(...activeClasses);
+      btn.classList.remove(...inactiveClasses);
+    } else {
+      btn.classList.remove(...activeClasses);
+      btn.classList.add(...inactiveClasses);
+    }
+  }
+
+  if (mode === "attendance") {
+    colAtt.classList.remove("hidden");
+    colSal.classList.add("hidden");
+    styleBtn(btnAtt, true);
+    styleBtn(btnSal, false);
+    styleBtn(btnBoth, false);
+    if (jumpText) jumpText.innerText = "Xem Lương";
+    if (jumpIcon) jumpIcon.className = "fa-solid fa-arrow-right";
+  } else if (mode === "salary") {
+    colAtt.classList.add("hidden");
+    colSal.classList.remove("hidden");
+    styleBtn(btnAtt, false);
+    styleBtn(btnSal, true);
+    styleBtn(btnBoth, false);
+    if (jumpText) jumpText.innerText = "Chấm Công";
+    if (jumpIcon) jumpIcon.className = "fa-solid fa-arrow-left";
+  } else { // both
+    colAtt.classList.remove("hidden");
+    colSal.classList.remove("hidden");
+    styleBtn(btnAtt, false);
+    styleBtn(btnSal, false);
+    styleBtn(btnBoth, true);
+    if (jumpText) jumpText.innerText = "Xem Lương";
+    if (jumpIcon) jumpIcon.className = "fa-solid fa-arrow-down";
+  }
+}
+
+function setupMobileResponsiveControls() {
+  const btnAtt = document.getElementById("btnMobileShowAttendance");
+  const btnSal = document.getElementById("btnMobileShowSalary");
+  const btnBoth = document.getElementById("btnMobileShowBoth");
+  const btnJump = document.getElementById("btnMobileJumpToSalary");
+
+  if (btnAtt) btnAtt.addEventListener("click", () => setMobileViewMode("attendance"));
+  if (btnSal) btnSal.addEventListener("click", () => setMobileViewMode("salary"));
+  if (btnBoth) btnBoth.addEventListener("click", () => setMobileViewMode("both"));
+
+  if (btnJump) {
+    btnJump.addEventListener("click", () => {
+      if (window.innerWidth < 1280) {
+        if (currentMobileViewMode === "attendance") {
+          setMobileViewMode("salary");
+          window.scrollTo({ top: 120, behavior: "smooth" });
+        } else {
+          setMobileViewMode("attendance");
+          window.scrollTo({ top: 120, behavior: "smooth" });
+        }
+      } else {
+        const colSal = document.getElementById("colSalary");
+        if (colSal) colSal.scrollIntoView({ behavior: "smooth" });
+      }
+    });
+  }
+
+  // Handle screen resize across the 1280px (xl) breakpoint
+  window.addEventListener("resize", () => {
+    if (window.innerWidth >= 1280) {
+      const colAtt = document.getElementById("colAttendance");
+      const colSal = document.getElementById("colSalary");
+      if (colAtt) colAtt.classList.remove("hidden");
+      if (colSal) colSal.classList.remove("hidden");
+    } else {
+      setMobileViewMode(currentMobileViewMode);
+    }
+  });
+
+  // Default mode on init for small screens: show Attendance
+  if (window.innerWidth < 1280) {
+    setMobileViewMode("attendance");
+  }
+}
+
 // Khởi chạy khi tải trang
 window.addEventListener("DOMContentLoaded", async () => {
   initEmployees();
   setupEmployeeEventListeners();
+  setupMobileResponsiveControls();
   await checkBackendStatus();
   // 1. Nạp từ localStorage để hiển thị tức thì 0 giây
   await loadAllMonthsFromBackendOrStorage(currentYear);
