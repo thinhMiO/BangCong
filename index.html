@@ -623,7 +623,7 @@
                   <!-- Cột 3: Tổng ngày phép (Admin sửa được, tự động cộng dồn qua nhiều năm & tích lũy theo ngày vào xưởng) -->
                   <td class="border border-black py-1 px-1 text-blue-800 bg-amber-50/20">
                     <div class="inline-flex items-center justify-center gap-1 w-full">
-                      <input type="number" id="annualLeaveTotal" min="0" max="60" step="0.5" value="10"
+                      <input type="number" id="annualLeaveTotal" min="0" max="60" step="any" value="10"
                         class="w-14 sm:w-16 text-center font-bold font-mono text-blue-800 border border-transparent hover:border-slate-300 rounded px-1 py-1 outline-none focus:bg-white focus:ring-1 focus:ring-blue-500"
                         title="Admin có thể sửa tổng ngày phép năm của nhân viên">
                     </div>
@@ -632,7 +632,7 @@
                   <!-- Cột 4: Số ngày phép đã nghỉ (Admin sửa được trực tiếp cho người cũ đã nghỉ) -->
                   <td class="border border-black py-1 px-1 text-purple-800 bg-purple-50/20">
                     <div class="inline-flex items-center justify-center gap-1 w-full">
-                      <input type="number" id="annualLeaveUsed" min="0" max="60" step="0.5" value="0"
+                      <input type="number" id="annualLeaveUsed" min="0" max="60" step="any" value="0"
                         class="w-14 sm:w-16 text-center font-bold font-mono text-purple-800 border border-transparent hover:border-slate-300 rounded px-1 py-1 outline-none focus:bg-white focus:ring-1 focus:ring-blue-500"
                         title="Admin có thể sửa trực tiếp số ngày phép đã nghỉ (dành cho người cũ đã nghỉ hoặc chưa chấm trên web)">
                     </div>
@@ -693,7 +693,7 @@
               <tr>
                 <td class="border border-black px-2 py-1.5 font-bold bg-slate-50">Lương cơ bản (LCB)</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="baseSalary" value="6300000" step="50000"
+                  <input type="number" id="baseSalary" value="6300000" step="any"
                     class="table-input font-bold text-right px-2 bg-amber-50/40" title="Nhấp để sửa Lương cơ bản">
                 </td>
                 <td class="border border-black px-2 py-1.5 font-bold bg-slate-50 flex items-center justify-between">
@@ -707,7 +707,7 @@
               <tr>
                 <td class="border border-black px-2 py-1.5 font-bold bg-slate-50">Phụ cấp chức vụ</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="positionAllowance" value="2450000" step="50000"
+                  <input type="number" id="positionAllowance" value="2450000" step="any"
                     class="table-input font-bold text-right px-2 bg-amber-50/40" title="Nhấp để sửa phụ cấp chức vụ">
                 </td>
                 <td class="border border-black px-2 py-1.5 font-bold bg-slate-50 flex items-center justify-between">
@@ -721,12 +721,12 @@
               <tr>
                 <td class="border border-black px-2 py-1.5 font-bold bg-slate-50">Thâm niên</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="seniorityAllowance" value="100000" step="50000"
+                  <input type="number" id="seniorityAllowance" value="100000" step="any"
                     class="table-input font-bold text-right px-2 bg-amber-50/40" title="Nhấp để sửa phụ cấp thâm niên">
                 </td>
                 <td class="border border-black px-2 py-1.5 font-bold bg-slate-50">Hệ số KPI</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="kpiCoeff" value="1" step="0.1" min="0" max="3"
+                  <input type="number" id="kpiCoeff" value="1" step="any" min="0" max="3"
                     class="table-input font-bold text-center bg-amber-50/40 num-font" title="Nhấp để sửa hệ số KPI">
                 </td>
               </tr>
@@ -874,7 +874,7 @@
                 <td class="border border-black px-2 py-1 text-center text-slate-500">Cố định</td>
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="allowanceGas" value="500000" step="50000"
+                  <input type="number" id="allowanceGas" value="500000" step="any"
                     class="table-input text-right font-medium px-2 num-font bg-amber-50/40">
                 </td>
               </tr>
@@ -883,7 +883,7 @@
                 <td class="border border-black px-2 py-1 text-center text-slate-500">Cố định</td>
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="allowanceHouse" value="500000" step="50000"
+                  <input type="number" id="allowanceHouse" value="500000" step="any"
                     class="table-input text-right font-medium px-2 num-font bg-amber-50/40">
                 </td>
               </tr>
@@ -892,7 +892,7 @@
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="allowanceChild" value="0" step="50000"
+                  <input type="number" id="allowanceChild" value="0" step="any"
                     class="table-input text-right font-medium px-2 num-font bg-amber-50/40" placeholder="0">
                 </td>
               </tr>
@@ -901,7 +901,7 @@
                 <td class="border border-black px-2 py-1 text-center text-slate-400">/</td>
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="allowanceSafety" value="0" step="50000"
+                  <input type="number" id="allowanceSafety" value="0" step="any"
                     class="table-input text-right font-medium px-2 num-font bg-amber-50/40" placeholder="0">
                 </td>
               </tr>
@@ -916,7 +916,7 @@
                   id="labelNightSubsidy">30k x 0 đêm</td>
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="allowanceNight" value="0" step="30000"
+                  <input type="number" id="allowanceNight" value="0" step="any"
                     class="table-input text-right font-bold px-2 num-font text-indigo-800 bg-amber-50/40"
                     title="Có thể sửa tay số tiền trợ cấp ca đêm">
                 </td>
@@ -932,7 +932,7 @@
                   25k/đêm</td>
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="allowanceMealNight" value="0" step="25000"
+                  <input type="number" id="allowanceMealNight" value="0" step="any"
                     class="table-input text-right font-bold px-2 num-font text-indigo-800 bg-amber-50/40"
                     title="Có thể sửa tay tiền ăn ca đêm">
                 </td>
@@ -942,7 +942,7 @@
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="allowancePeriod" value="0" step="50000"
+                  <input type="number" id="allowancePeriod" value="0" step="any"
                     class="table-input text-right font-medium px-2 num-font bg-amber-50/40" placeholder="0">
                 </td>
               </tr>
@@ -951,7 +951,7 @@
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="allowanceOther" value="0" step="50000"
+                  <input type="number" id="allowanceOther" value="0" step="any"
                     class="table-input text-right font-medium px-2 num-font bg-amber-50/40" placeholder="0">
                 </td>
               </tr>
@@ -980,7 +980,7 @@
                 </td>
                 <td class="border border-black px-2 py-1 text-center text-slate-500" id="attBonusStatus">Đủ công</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="bonusAttendance" value="600000" step="50000"
+                  <input type="number" id="bonusAttendance" value="600000" step="any"
                     class="table-input text-right font-medium px-2 num-font bg-amber-50/40"
                     title="Tiền thưởng chuyên cần tiêu chuẩn">
                 </td>
@@ -992,7 +992,7 @@
                 <td class="border border-black px-2 py-1 pl-4">2. Thưởng khác/ Thưởng đi làm đầy đủ</td>
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="bonusFullAttendance" value="0" step="50000"
+                  <input type="number" id="bonusFullAttendance" value="0" step="any"
                     class="table-input text-right font-medium px-2 num-font bg-amber-50/40" placeholder="0"
                     title="Thưởng khác / Thưởng đi làm đầy đủ">
                 </td>
@@ -1004,7 +1004,7 @@
                 <td class="border border-black px-2 py-1 pl-4">3. Tiền thưởng hiệu suất</td>
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="bonusEfficiency" value="0" step="50000"
+                  <input type="number" id="bonusEfficiency" value="0" step="any"
                     class="table-input text-right font-medium px-2 num-font bg-amber-50/40" placeholder="0"
                     title="Tiền thưởng hiệu suất">
                 </td>
@@ -1016,7 +1016,7 @@
                 <td class="border border-black px-2 py-1 pl-4">4. Khen thưởng sao sáng,ngôi sao chất lượng</td>
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="bonusQualityStar" value="0" step="50000"
+                  <input type="number" id="bonusQualityStar" value="0" step="any"
                     class="table-input text-right font-medium px-2 num-font bg-amber-50/40" placeholder="0"
                     title="Khen thưởng sao sáng, ngôi sao chất lượng">
                 </td>
@@ -1028,7 +1028,7 @@
                 <td class="border border-black px-2 py-1 pl-4">5. Thưởng biểu hiện công việc</td>
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="bonusPerformance" value="0" step="50000"
+                  <input type="number" id="bonusPerformance" value="0" step="any"
                     class="table-input text-right font-medium px-2 num-font bg-amber-50/40" placeholder="0"
                     title="Thưởng biểu hiện công việc">
                 </td>
@@ -1041,13 +1041,13 @@
                 <td class="border border-black px-2 py-1 text-center text-slate-600">
                   <div class="inline-flex items-center justify-center gap-1">
                     <span id="labelKPIBonus">Hệ số:</span>
-                    <input type="number" id="kpiCoeffInline" value="1" step="0.05" min="0" max="3"
+                    <input type="number" id="kpiCoeffInline" value="1" step="any" min="0" max="3"
                       class="w-14 text-center font-bold border border-slate-300 rounded bg-white text-xs py-0.5 num-font focus:ring-1 focus:ring-blue-500 outline-none"
                       title="Nhấp để sửa hệ số KPI">
                   </div>
                 </td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="bonusKPI" value="3050000" step="50000"
+                  <input type="number" id="bonusKPI" value="3050000" step="any"
                     class="table-input text-right font-medium px-2 num-font bg-amber-50/40"
                     title="Tiền thưởng KPI tiêu chuẩn (hệ số 1)">
                 </td>
@@ -1059,7 +1059,7 @@
                 <td class="border border-black px-2 py-1 pl-4">7. Thưởng tuyển dụng(giới thiệu&tự ứng tuyển)</td>
                 <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="bonusRecruitment" value="0" step="50000"
+                  <input type="number" id="bonusRecruitment" value="0" step="any"
                     class="table-input text-right font-medium px-2 num-font bg-amber-50/40" placeholder="0"
                     title="Thưởng tuyển dụng (giới thiệu & tự ứng tuyển)">
                 </td>
@@ -1495,12 +1495,12 @@
         <div class="grid grid-cols-2 gap-2">
           <div>
             <label class="block font-semibold text-slate-700 mb-1">Tổng ngày phép (年假总天数):</label>
-            <input type="number" id="modalEmpAnnualLeave" min="0" max="100" step="0.5" placeholder="10"
+            <input type="number" id="modalEmpAnnualLeave" min="0" max="100" step="any" placeholder="10"
               class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono font-bold text-amber-800 outline-none">
           </div>
           <div>
             <label class="block font-semibold text-slate-700 mb-1">Số phép đã nghỉ (已用):</label>
-            <input type="number" id="modalEmpAnnualLeaveUsed" min="0" max="100" step="0.5" placeholder="0"
+            <input type="number" id="modalEmpAnnualLeaveUsed" min="0" max="100" step="any" placeholder="0"
               class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono font-bold text-purple-800 outline-none">
           </div>
         </div>
@@ -1524,18 +1524,18 @@
           </div>
           <div>
             <label class="block font-semibold text-slate-700 text-xs mb-0.5">Lương cơ bản (LCB):</label>
-            <input type="number" id="modalEmpBaseSalary" step="50000" placeholder="6300000"
+            <input type="number" id="modalEmpBaseSalary" step="any" placeholder="6300000"
               class="w-full px-2.5 py-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 font-mono font-bold text-blue-700 text-xs outline-none">
           </div>
           <div class="grid grid-cols-2 gap-2">
             <div>
               <label class="block font-semibold text-slate-700 text-xs mb-0.5">Phụ cấp chức vụ (VNĐ):</label>
-              <input type="number" id="modalEmpPosAllowance" step="50000" placeholder="0"
+              <input type="number" id="modalEmpPosAllowance" step="any" placeholder="0"
                 class="w-full px-2.5 py-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 font-mono text-slate-800 text-xs outline-none">
             </div>
             <div>
               <label class="block font-semibold text-slate-700 text-xs mb-0.5">Thâm niên (VNĐ):</label>
-              <input type="number" id="modalEmpSenAllowance" step="50000" placeholder="0"
+              <input type="number" id="modalEmpSenAllowance" step="any" placeholder="0"
                 class="w-full px-2.5 py-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 font-mono text-slate-800 text-xs outline-none">
             </div>
           </div>
@@ -1680,7 +1680,7 @@
   <div id="toastContainer" class="fixed bottom-14 xl:bottom-5 right-3 xl:right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
   <!-- SCRIPT (Thêm version để chống kẹt cache trình duyệt khi deploy) -->
-  <script src="app.js?v=20261120_bonus7_full"></script>
+  <script src="app.js?v=20261120_step_any"></script>
 </body>
 
 </html>
