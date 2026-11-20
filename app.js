@@ -280,7 +280,7 @@ function renderEmployeeSelect() {
   applyAuthUI();
 }
 
-function addNewEmployee(name, dept, cardId, annualLeaveTotal, baseSalary, posAllowance, senAllowance, bankAccount, bankName, startDate, probationEndDate, annualLeaveUsed) {
+function addNewEmployee(name, dept, cardId, annualLeaveTotal, baseSalary, posAllowance, senAllowance, bankAccount, bankName, startDate, probationEndDate, annualLeaveUsed, extraSalaryConfig) {
   saveCurrentEmployeeData();
 
   const newId = "emp_" + Date.now();
@@ -300,13 +300,17 @@ function addNewEmployee(name, dept, cardId, annualLeaveTotal, baseSalary, posAll
   window.currentEmpId = currentEmpId;
 
   const customCfg = getDefaultSalaryConfig(currentMonth);
-  if (baseSalary !== undefined && !isNaN(baseSalary) && baseSalary > 0) {
-    customCfg.baseSalary = baseSalary;
+  if (extraSalaryConfig && typeof extraSalaryConfig === "object") {
+    Object.assign(customCfg, extraSalaryConfig);
+  } else {
+    if (baseSalary !== undefined && !isNaN(baseSalary) && baseSalary > 0) {
+      customCfg.baseSalary = baseSalary;
+    }
+    customCfg.positionAllowance = (posAllowance !== undefined && !isNaN(posAllowance)) ? posAllowance : 0;
+    customCfg.seniorityAllowance = (senAllowance !== undefined && !isNaN(senAllowance)) ? senAllowance : 0;
+    customCfg.bankAccount = (bankAccount !== undefined && bankAccount !== null) ? bankAccount.trim() : "";
+    customCfg.bankName = (bankName !== undefined && bankName !== null) ? bankName.trim() : "";
   }
-  customCfg.positionAllowance = (posAllowance !== undefined && !isNaN(posAllowance)) ? posAllowance : 0;
-  customCfg.seniorityAllowance = (senAllowance !== undefined && !isNaN(senAllowance)) ? senAllowance : 0;
-  customCfg.bankAccount = (bankAccount !== undefined && bankAccount !== null) ? bankAccount.trim() : "";
-  customCfg.bankName = (bankName !== undefined && bankName !== null) ? bankName.trim() : "";
 
   const newCfgs = {};
   for (let m = 1; m <= 12; m++) {
@@ -340,7 +344,7 @@ function addNewEmployee(name, dept, cardId, annualLeaveTotal, baseSalary, posAll
   showToast(`🎉 Đã thêm nhân viên: ${newEmp.name} (MST: ${newEmp.cardId})!`);
 }
 
-function updateCurrentEmployeeInfo(name, dept, cardId, annualLeaveTotal, baseSalary, posAllowance, senAllowance, bankAccount, bankName, startDate, probationEndDate, annualLeaveUsed) {
+function updateCurrentEmployeeInfo(name, dept, cardId, annualLeaveTotal, baseSalary, posAllowance, senAllowance, bankAccount, bankName, startDate, probationEndDate, annualLeaveUsed, extraSalaryConfig) {
   const emp = employeesList.find(e => e.id === currentEmpId);
   if (!emp) return;
   if (name && name.trim()) emp.name = name.trim();
@@ -385,30 +389,35 @@ function updateCurrentEmployeeInfo(name, dept, cardId, annualLeaveTotal, baseSal
     monthlyConfigStore[currentMonth] = getDefaultSalaryConfig(currentMonth);
   }
   const cfg = monthlyConfigStore[currentMonth];
-  if (baseSalary !== undefined && !isNaN(baseSalary) && baseSalary > 0) {
-    cfg.baseSalary = baseSalary;
-    const el = document.getElementById("baseSalary");
-    if (el) el.value = baseSalary;
-  }
-  if (posAllowance !== undefined && !isNaN(posAllowance)) {
-    cfg.positionAllowance = posAllowance;
-    const el = document.getElementById("positionAllowance");
-    if (el) el.value = posAllowance;
-  }
-  if (senAllowance !== undefined && !isNaN(senAllowance)) {
-    cfg.seniorityAllowance = senAllowance;
-    const el = document.getElementById("seniorityAllowance");
-    if (el) el.value = senAllowance;
-  }
-  if (bankAccount !== undefined) {
-    cfg.bankAccount = bankAccount.trim();
-    const el = document.getElementById("bankAccount");
-    if (el) el.value = cfg.bankAccount;
-  }
-  if (bankName !== undefined) {
-    cfg.bankName = bankName.trim();
-    const el = document.getElementById("bankName");
-    if (el) el.value = cfg.bankName;
+  if (extraSalaryConfig && typeof extraSalaryConfig === "object") {
+    Object.assign(cfg, extraSalaryConfig);
+    loadConfigStoreToInputs(currentMonth);
+  } else {
+    if (baseSalary !== undefined && !isNaN(baseSalary) && baseSalary > 0) {
+      cfg.baseSalary = baseSalary;
+      const el = document.getElementById("baseSalary");
+      if (el) el.value = baseSalary;
+    }
+    if (posAllowance !== undefined && !isNaN(posAllowance)) {
+      cfg.positionAllowance = posAllowance;
+      const el = document.getElementById("positionAllowance");
+      if (el) el.value = posAllowance;
+    }
+    if (senAllowance !== undefined && !isNaN(senAllowance)) {
+      cfg.seniorityAllowance = senAllowance;
+      const el = document.getElementById("seniorityAllowance");
+      if (el) el.value = senAllowance;
+    }
+    if (bankAccount !== undefined) {
+      cfg.bankAccount = bankAccount.trim();
+      const el = document.getElementById("bankAccount");
+      if (el) el.value = cfg.bankAccount;
+    }
+    if (bankName !== undefined) {
+      cfg.bankName = bankName.trim();
+      const el = document.getElementById("bankName");
+      if (el) el.value = cfg.bankName;
+    }
   }
 
   saveCurrentEmployeeData();
@@ -483,6 +492,27 @@ function setupEmployeeEventListeners() {
   const modalSenAllowance = document.getElementById("modalEmpSenAllowance");
   const modalBankAccount = document.getElementById("modalEmpBankAccount");
   const modalBankName = document.getElementById("modalEmpBankName");
+
+  // Các khoản phụ cấp trong modal
+  const modalGas = document.getElementById("modalEmpGas");
+  const modalHouse = document.getElementById("modalEmpHouse");
+  const modalChild = document.getElementById("modalEmpChild");
+  const modalSafety = document.getElementById("modalEmpSafety");
+  const modalNight = document.getElementById("modalEmpNight");
+  const modalMealNight = document.getElementById("modalEmpMealNight");
+  const modalPeriod = document.getElementById("modalEmpPeriod");
+  const modalOther = document.getElementById("modalEmpOther");
+
+  // Các khoản thưởng trong modal
+  const modalBonusAtt = document.getElementById("modalEmpBonusAtt");
+  const modalBonusFullAtt = document.getElementById("modalEmpBonusFullAtt");
+  const modalBonusEfficiency = document.getElementById("modalEmpBonusEfficiency");
+  const modalBonusQualityStar = document.getElementById("modalEmpBonusQualityStar");
+  const modalBonusPerformance = document.getElementById("modalEmpBonusPerformance");
+  const modalBonusKPI = document.getElementById("modalEmpBonusKPI");
+  const modalKpiCoeff = document.getElementById("modalEmpKpiCoeff");
+  const modalBonusRecruitment = document.getElementById("modalEmpBonusRecruitment");
+
   const btnClose = document.getElementById("btnCloseEmpModal");
   const btnCancel = document.getElementById("btnCancelEmpModal");
   const form = document.getElementById("formEmployee");
@@ -504,6 +534,26 @@ function setupEmployeeEventListeners() {
       if (modalSenAllowance) modalSenAllowance.value = "0";
       if (modalBankAccount) modalBankAccount.value = "";
       if (modalBankName) modalBankName.value = "";
+
+      // Phụ cấp mặc định
+      if (modalGas) modalGas.value = "500000";
+      if (modalHouse) modalHouse.value = "500000";
+      if (modalChild) modalChild.value = "0";
+      if (modalSafety) modalSafety.value = "0";
+      if (modalNight) modalNight.value = "0";
+      if (modalMealNight) modalMealNight.value = "0";
+      if (modalPeriod) modalPeriod.value = "0";
+      if (modalOther) modalOther.value = "0";
+
+      // Thưởng mặc định
+      if (modalBonusAtt) modalBonusAtt.value = "600000";
+      if (modalBonusFullAtt) modalBonusFullAtt.value = "0";
+      if (modalBonusEfficiency) modalBonusEfficiency.value = "0";
+      if (modalBonusQualityStar) modalBonusQualityStar.value = "0";
+      if (modalBonusPerformance) modalBonusPerformance.value = "0";
+      if (modalBonusKPI) modalBonusKPI.value = "3050000";
+      if (modalKpiCoeff) modalKpiCoeff.value = "1";
+      if (modalBonusRecruitment) modalBonusRecruitment.value = "0";
     } else {
       modalTitle.innerHTML = `<i class="fa-solid fa-pen"></i> Chỉnh Sửa Hồ Sơ & Mức Lương Nhân Viên`;
       const emp = employeesList.find(e => e.id === currentEmpId);
@@ -521,6 +571,26 @@ function setupEmployeeEventListeners() {
       if (modalSenAllowance) modalSenAllowance.value = cfg.seniorityAllowance !== undefined ? cfg.seniorityAllowance : (currentEmpId === "emp_default" ? 100000 : 0);
       if (modalBankAccount) modalBankAccount.value = cfg.bankAccount !== undefined ? cfg.bankAccount : (currentEmpId === "emp_default" ? "STK: 102884878810" : "");
       if (modalBankName) modalBankName.value = cfg.bankName !== undefined ? cfg.bankName : (currentEmpId === "emp_default" ? "VietinBank" : "");
+
+      // Phụ cấp hiện tại
+      if (modalGas) modalGas.value = (cfg.allowanceGas !== undefined) ? cfg.allowanceGas : 500000;
+      if (modalHouse) modalHouse.value = (cfg.allowanceHouse !== undefined) ? cfg.allowanceHouse : 500000;
+      if (modalChild) modalChild.value = (cfg.allowanceChild !== undefined) ? cfg.allowanceChild : 0;
+      if (modalSafety) modalSafety.value = (cfg.allowanceSafety !== undefined) ? cfg.allowanceSafety : 0;
+      if (modalNight) modalNight.value = (cfg.allowanceNight !== undefined) ? cfg.allowanceNight : 0;
+      if (modalMealNight) modalMealNight.value = (cfg.allowanceMealNight !== undefined) ? cfg.allowanceMealNight : 0;
+      if (modalPeriod) modalPeriod.value = (cfg.allowancePeriod !== undefined) ? cfg.allowancePeriod : 0;
+      if (modalOther) modalOther.value = (cfg.allowanceOther !== undefined) ? cfg.allowanceOther : 0;
+
+      // Thưởng hiện tại
+      if (modalBonusAtt) modalBonusAtt.value = (cfg.bonusAttendance !== undefined) ? cfg.bonusAttendance : 600000;
+      if (modalBonusFullAtt) modalBonusFullAtt.value = (cfg.bonusFullAttendance !== undefined) ? cfg.bonusFullAttendance : 0;
+      if (modalBonusEfficiency) modalBonusEfficiency.value = (cfg.bonusEfficiency !== undefined) ? cfg.bonusEfficiency : 0;
+      if (modalBonusQualityStar) modalBonusQualityStar.value = (cfg.bonusQualityStar !== undefined) ? cfg.bonusQualityStar : 0;
+      if (modalBonusPerformance) modalBonusPerformance.value = (cfg.bonusPerformance !== undefined) ? cfg.bonusPerformance : 0;
+      if (modalBonusKPI) modalBonusKPI.value = (cfg.bonusKPI !== undefined) ? cfg.bonusKPI : 3050000;
+      if (modalKpiCoeff) modalKpiCoeff.value = (cfg.kpiCoeff !== undefined) ? cfg.kpiCoeff : 1;
+      if (modalBonusRecruitment) modalBonusRecruitment.value = (cfg.bonusRecruitment !== undefined) ? cfg.bonusRecruitment : 0;
     }
     if (modalSalaryRow) modalSalaryRow.classList.remove("hidden");
     modal.classList.remove("hidden");
@@ -558,10 +628,34 @@ function setupEmployeeEventListeners() {
       const bankAcc = modalBankAccount ? modalBankAccount.value.trim() : "";
       const bankNm = modalBankName ? modalBankName.value.trim() : "";
 
+      const extraSalaryConfig = {
+        baseSalary: baseSal,
+        positionAllowance: posAll,
+        seniorityAllowance: senAll,
+        allowanceGas: modalGas && modalGas.value !== "" ? (parseFloat(modalGas.value) || 0) : 500000,
+        allowanceHouse: modalHouse && modalHouse.value !== "" ? (parseFloat(modalHouse.value) || 0) : 500000,
+        allowanceChild: modalChild && modalChild.value !== "" ? (parseFloat(modalChild.value) || 0) : 0,
+        allowanceSafety: modalSafety && modalSafety.value !== "" ? (parseFloat(modalSafety.value) || 0) : 0,
+        allowanceNight: modalNight && modalNight.value !== "" ? (parseFloat(modalNight.value) || 0) : 0,
+        allowanceMealNight: modalMealNight && modalMealNight.value !== "" ? (parseFloat(modalMealNight.value) || 0) : 0,
+        allowancePeriod: modalPeriod && modalPeriod.value !== "" ? (parseFloat(modalPeriod.value) || 0) : 0,
+        allowanceOther: modalOther && modalOther.value !== "" ? (parseFloat(modalOther.value) || 0) : 0,
+        bonusAttendance: modalBonusAtt && modalBonusAtt.value !== "" ? (parseFloat(modalBonusAtt.value) || 0) : 600000,
+        bonusFullAttendance: modalBonusFullAtt && modalBonusFullAtt.value !== "" ? (parseFloat(modalBonusFullAtt.value) || 0) : 0,
+        bonusEfficiency: modalBonusEfficiency && modalBonusEfficiency.value !== "" ? (parseFloat(modalBonusEfficiency.value) || 0) : 0,
+        bonusQualityStar: modalBonusQualityStar && modalBonusQualityStar.value !== "" ? (parseFloat(modalBonusQualityStar.value) || 0) : 0,
+        bonusPerformance: modalBonusPerformance && modalBonusPerformance.value !== "" ? (parseFloat(modalBonusPerformance.value) || 0) : 0,
+        bonusKPI: modalBonusKPI && modalBonusKPI.value !== "" ? (parseFloat(modalBonusKPI.value) || 0) : 3050000,
+        kpiCoeff: modalKpiCoeff && modalKpiCoeff.value !== "" ? (parseFloat(modalKpiCoeff.value) || 1) : 1,
+        bonusRecruitment: modalBonusRecruitment && modalBonusRecruitment.value !== "" ? (parseFloat(modalBonusRecruitment.value) || 0) : 0,
+        bankAccount: bankAcc,
+        bankName: bankNm
+      };
+
       if (modalMode.value === "add") {
-        addNewEmployee(name, dept, cardId, annualLeave, baseSal, posAll, senAll, bankAcc, bankNm, sDate, pDate, annualLeaveUsed);
+        addNewEmployee(name, dept, cardId, annualLeave, baseSal, posAll, senAll, bankAcc, bankNm, sDate, pDate, annualLeaveUsed, extraSalaryConfig);
       } else {
-        updateCurrentEmployeeInfo(name, dept, cardId, annualLeave, baseSal, posAll, senAll, bankAcc, bankNm, sDate, pDate, annualLeaveUsed);
+        updateCurrentEmployeeInfo(name, dept, cardId, annualLeave, baseSal, posAll, senAll, bankAcc, bankNm, sDate, pDate, annualLeaveUsed, extraSalaryConfig);
       }
       renderAnnualLeaveTable();
       closeModal();
@@ -1177,38 +1271,72 @@ function getMonthConfigForYear(year, month) {
   return getDefaultSalaryConfig(month);
 }
 
-function getDefaultSalaryConfig(m) {
-  if (currentEmpId && currentEmpId !== "emp_default") {
-    return {
-      baseSalary: 6300000,
-      positionAllowance: 0,
-      seniorityAllowance: 0,
-      kpiCoeff: 1.0,
-      allowanceGas: 500000,
-      allowanceHouse: 500000,
-      allowanceChild: 0,
-      allowanceSafety: 0,
-      allowanceNight: 0,
-      allowanceMealNight: 0,
-      isManualNight: false,
-      allowancePeriod: 0,
-      allowanceOther: 0,
-            bonusAttendance: 600000,
-      bonusFullAttendance: 0,
-      bonusEfficiency: 0,
-      bonusQualityStar: 0,
-      bonusPerformance: 0,
-      bonusKPI: 3050000,
-      bonusRecruitment: 0,
-      isTaxExempt: 1,
-      bankAccount: "",
-      bankName: ""
-    };
+function getLatestSalaryConfigForEmployee(empId = currentEmpId, preferYear = currentYear, preferMonth = currentMonth) {
+  if (!empId) empId = currentEmpId;
+
+  // 1. Kiểm tra chính preferMonth nếu preferYear trùng năm đang mở trong RAM
+  if (preferYear === currentYear && monthlyConfigStore && monthlyConfigStore[preferMonth]) {
+    const curCfg = monthlyConfigStore[preferMonth];
+    if (curCfg && (curCfg.baseSalary !== undefined || curCfg.base_salary !== undefined)) {
+      const norm = normalizeConfig(curCfg);
+      if (norm && norm.baseSalary > 0) return JSON.parse(JSON.stringify(norm));
+    }
   }
+
+  // 2. Tìm ngược từ tháng 12 về tháng 1 trong monthlyConfigStore đang mở
+  if (preferYear === currentYear && monthlyConfigStore) {
+    for (let m = 12; m >= 1; m--) {
+      const cfg = monthlyConfigStore[m];
+      if (cfg && (cfg.baseSalary !== undefined || cfg.base_salary !== undefined)) {
+        const norm = normalizeConfig(cfg);
+        if (norm && norm.baseSalary > 0) return JSON.parse(JSON.stringify(norm));
+      }
+    }
+  }
+
+  // 3. Tìm trong kho allYearsStore hoặc employeesDataStore[empId].years
+  const store = (employeesDataStore[empId] && employeesDataStore[empId].years)
+    ? employeesDataStore[empId].years
+    : allYearsStore;
+
+  if (store) {
+    const years = Object.keys(store).map(Number).filter(y => !isNaN(y));
+    let targetYears = years.filter(y => y <= preferYear).sort((a, b) => b - a);
+    if (targetYears.length === 0) targetYears = years.sort((a, b) => b - a);
+
+    for (const y of targetYears) {
+      const yData = store[y];
+      if (yData && yData.configs) {
+        for (let m = 12; m >= 1; m--) {
+          const cfg = yData.configs[m];
+          if (cfg && (cfg.baseSalary !== undefined || cfg.base_salary !== undefined)) {
+            const norm = normalizeConfig(cfg);
+            if (norm && norm.baseSalary > 0) return JSON.parse(JSON.stringify(norm));
+          }
+        }
+      }
+    }
+  }
+
+  // 4. Tìm trong localStorage
+  for (let y = preferYear; y >= preferYear - 5; y--) {
+    for (let m = 12; m >= 1; m--) {
+      const s = localStorage.getItem(`cfg_${y}_${m}`);
+      if (s) {
+        try {
+          const norm = normalizeConfig(JSON.parse(s));
+          if (norm && norm.baseSalary > 0) return JSON.parse(JSON.stringify(norm));
+        } catch(e) {}
+      }
+    }
+  }
+
+  // 5. Fallback nếu là nhân viên hoàn toàn mới chưa có bất kỳ cấu hình nào
+  const isDefaultEmp = (empId === "emp_default");
   return {
     baseSalary: 6300000,
-    positionAllowance: 2450000,
-    seniorityAllowance: 100000,
+    positionAllowance: isDefaultEmp ? 2450000 : 0,
+    seniorityAllowance: isDefaultEmp ? 100000 : 0,
     kpiCoeff: 1.0,
     allowanceGas: 500000,
     allowanceHouse: 500000,
@@ -1219,17 +1347,22 @@ function getDefaultSalaryConfig(m) {
     isManualNight: false,
     allowancePeriod: 0,
     allowanceOther: 0,
-          bonusAttendance: 600000,
-      bonusFullAttendance: 0,
-      bonusEfficiency: 0,
-      bonusQualityStar: 0,
-      bonusPerformance: 0,
-      bonusKPI: 3050000,
-      bonusRecruitment: 0,
+    bonusAttendance: 600000,
+    bonusFullAttendance: 0,
+    bonusEfficiency: 0,
+    bonusQualityStar: 0,
+    bonusPerformance: 0,
+    bonusKPI: 3050000,
+    bonusRecruitment: 0,
     isTaxExempt: 1,
-    bankAccount: "STK: 102884878810",
-    bankName: "VietinBank"
+    bankAccount: isDefaultEmp ? "STK: 102884878810" : "",
+    bankName: isDefaultEmp ? "VietinBank" : ""
   };
+}
+
+function getDefaultSalaryConfig(m) {
+  const latest = getLatestSalaryConfigForEmployee(currentEmpId, currentYear, m);
+  return JSON.parse(JSON.stringify(latest));
 }
 
 function saveCurrentMonthInputsToConfigStore() {
@@ -1299,11 +1432,84 @@ function saveCurrentMonthInputsToConfigStore() {
       localStorage.setItem("emp_data_" + currentEmpId, JSON.stringify(employeesDataStore[currentEmpId]));
     } catch (e) {}
   }
+
+  // Tự động kế thừa / áp dụng mức lương tăng cho các tháng tương lai (từ currentMonth + 1 đến 12)
+  // Nếu các tháng đó chưa có dữ liệu chấm công thực tế
+  const curCfg = monthlyConfigStore[currentMonth];
+  if (curCfg) {
+    for (let nextM = currentMonth + 1; nextM <= 12; nextM++) {
+      const nextAtt = monthlyStore[nextM];
+      const nextWorked = nextAtt && Object.values(nextAtt).some(d => d && (d.actual > 0 || d.shift === "night" || d.leave));
+      if (!nextWorked) {
+        if (!monthlyConfigStore[nextM]) monthlyConfigStore[nextM] = {};
+        monthlyConfigStore[nextM].baseSalary = curCfg.baseSalary;
+        monthlyConfigStore[nextM].positionAllowance = curCfg.positionAllowance;
+        monthlyConfigStore[nextM].seniorityAllowance = curCfg.seniorityAllowance;
+        monthlyConfigStore[nextM].kpiCoeff = curCfg.kpiCoeff;
+        monthlyConfigStore[nextM].allowanceGas = curCfg.allowanceGas;
+        monthlyConfigStore[nextM].allowanceHouse = curCfg.allowanceHouse;
+        monthlyConfigStore[nextM].allowanceChild = curCfg.allowanceChild;
+        monthlyConfigStore[nextM].allowanceSafety = curCfg.allowanceSafety;
+        monthlyConfigStore[nextM].allowancePeriod = curCfg.allowancePeriod;
+        monthlyConfigStore[nextM].allowanceOther = curCfg.allowanceOther;
+        monthlyConfigStore[nextM].bonusAttendance = curCfg.bonusAttendance;
+        monthlyConfigStore[nextM].bonusFullAttendance = curCfg.bonusFullAttendance;
+        monthlyConfigStore[nextM].bonusEfficiency = curCfg.bonusEfficiency;
+        monthlyConfigStore[nextM].bonusQualityStar = curCfg.bonusQualityStar;
+        monthlyConfigStore[nextM].bonusPerformance = curCfg.bonusPerformance;
+        monthlyConfigStore[nextM].bonusKPI = curCfg.bonusKPI;
+        monthlyConfigStore[nextM].bonusRecruitment = curCfg.bonusRecruitment;
+        monthlyConfigStore[nextM].bankAccount = curCfg.bankAccount;
+        monthlyConfigStore[nextM].bankName = curCfg.bankName;
+        monthlyConfigStore[nextM].isTaxExempt = curCfg.isTaxExempt;
+
+        localStorage.setItem(`cfg_${currentYear}_${nextM}`, JSON.stringify(monthlyConfigStore[nextM]));
+        if (allYearsStore[currentYear] && allYearsStore[currentYear].configs) {
+          allYearsStore[currentYear].configs[nextM] = JSON.parse(JSON.stringify(monthlyConfigStore[nextM]));
+        }
+        if (currentEmpId && employeesDataStore[currentEmpId] && employeesDataStore[currentEmpId].years && employeesDataStore[currentEmpId].years[currentYear] && employeesDataStore[currentEmpId].years[currentYear].configs) {
+          employeesDataStore[currentEmpId].years[currentYear].configs[nextM] = JSON.parse(JSON.stringify(monthlyConfigStore[nextM]));
+        }
+      }
+    }
+  }
 }
 
 function loadConfigStoreToInputs(m) {
   if (!monthlyConfigStore[m]) {
     monthlyConfigStore[m] = getDefaultSalaryConfig(m);
+  } else {
+    // Nếu tháng m này chưa có chấm công thực tế nào, tự động nhận mức lương tăng mới nhất từ các tháng trước (m-1, m-2...)
+    const mData = monthlyStore[m];
+    const hasWorked = mData && Object.values(mData).some(d => d && (d.actual > 0 || d.shift === "night" || d.leave));
+    if (!hasWorked && m > 1) {
+      for (let prevM = m - 1; prevM >= 1; prevM--) {
+        const prevCfg = monthlyConfigStore[prevM];
+        if (prevCfg && prevCfg.baseSalary > 0) {
+          monthlyConfigStore[m].baseSalary = prevCfg.baseSalary;
+          monthlyConfigStore[m].positionAllowance = prevCfg.positionAllowance;
+          monthlyConfigStore[m].seniorityAllowance = prevCfg.seniorityAllowance;
+          monthlyConfigStore[m].kpiCoeff = prevCfg.kpiCoeff;
+          monthlyConfigStore[m].allowanceGas = prevCfg.allowanceGas;
+          monthlyConfigStore[m].allowanceHouse = prevCfg.allowanceHouse;
+          monthlyConfigStore[m].allowanceChild = prevCfg.allowanceChild;
+          monthlyConfigStore[m].allowanceSafety = prevCfg.allowanceSafety;
+          monthlyConfigStore[m].allowancePeriod = prevCfg.allowancePeriod;
+          monthlyConfigStore[m].allowanceOther = prevCfg.allowanceOther;
+          monthlyConfigStore[m].bonusAttendance = prevCfg.bonusAttendance;
+          monthlyConfigStore[m].bonusFullAttendance = prevCfg.bonusFullAttendance;
+          monthlyConfigStore[m].bonusEfficiency = prevCfg.bonusEfficiency;
+          monthlyConfigStore[m].bonusQualityStar = prevCfg.bonusQualityStar;
+          monthlyConfigStore[m].bonusPerformance = prevCfg.bonusPerformance;
+          monthlyConfigStore[m].bonusKPI = prevCfg.bonusKPI;
+          monthlyConfigStore[m].bonusRecruitment = prevCfg.bonusRecruitment;
+          monthlyConfigStore[m].bankAccount = prevCfg.bankAccount;
+          monthlyConfigStore[m].bankName = prevCfg.bankName;
+          monthlyConfigStore[m].isTaxExempt = prevCfg.isTaxExempt;
+          break;
+        }
+      }
+    }
   }
   const cfg = monthlyConfigStore[m];
   const setVal = (id, val) => {
@@ -1624,55 +1830,62 @@ function applyShiftToDay(month, day, shiftType) {
 }
 
 // Initialize Default Sample Data
-function initializeDefaultData() {
+function initializeDefaultData(inheritedSalaryConfig) {
   addAvailableYear(currentYear);
   monthlyStore = {};
   monthlyConfigStore = {};
   window.monthlyStore = monthlyStore;
   window.monthlyConfigStore = monthlyConfigStore;
 
-  // Nếu trong allYearsStore đã có dữ liệu năm này thì nạp ngay
+  const hasWorkedAttendance = (store) => {
+    if (!store) return false;
+    for (let m = 1; m <= 12; m++) {
+      const mData = store[m];
+      if (mData && Object.keys(mData).length > 0) {
+        for (const day in mData) {
+          if (mData[day] && (mData[day].actual > 0 || mData[day].shift === "night" || mData[day].leave)) return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  // Nếu trong allYearsStore đã có dữ liệu năm này
   if (allYearsStore[currentYear] && allYearsStore[currentYear].attendance && allYearsStore[currentYear].configs) {
     monthlyStore = JSON.parse(JSON.stringify(allYearsStore[currentYear].attendance));
     monthlyConfigStore = JSON.parse(JSON.stringify(allYearsStore[currentYear].configs));
+
+    // Nếu năm này hoàn toàn chưa có chấm công thực tế nào (chưa làm việc),
+    // và có cấu hình mới nhất từ năm cũ mang sang (ví dụ lcb tháng 12 năm cũ là 5.7M):
+    // Cập nhật lại cấu hình lương cho cả 12 tháng theo cấu hình mới nhất!
+    if (inheritedSalaryConfig && !hasWorkedAttendance(monthlyStore)) {
+      for (let m = 1; m <= 12; m++) {
+        monthlyConfigStore[m] = JSON.parse(JSON.stringify(inheritedSalaryConfig));
+      }
+      allYearsStore[currentYear].configs = JSON.parse(JSON.stringify(monthlyConfigStore));
+      if (currentEmpId && employeesDataStore[currentEmpId] && employeesDataStore[currentEmpId].years) {
+        if (!employeesDataStore[currentEmpId].years[currentYear]) employeesDataStore[currentEmpId].years[currentYear] = {};
+        employeesDataStore[currentEmpId].years[currentYear].configs = JSON.parse(JSON.stringify(monthlyConfigStore));
+      }
+    }
+
     window.monthlyStore = monthlyStore;
     window.monthlyConfigStore = monthlyConfigStore;
     return;
   }
 
+  // Lấy cấu hình lương mới nhất để kế thừa cho toàn bộ 12 tháng của năm mới
+  const baseCfg = inheritedSalaryConfig || getLatestSalaryConfigForEmployee(currentEmpId, currentYear - 1, 12);
+
   for (let m = 1; m <= 12; m++) {
-    monthlyConfigStore[m] = getDefaultSalaryConfig(m);
+    monthlyConfigStore[m] = JSON.parse(JSON.stringify(baseCfg));
     
     // Check if saved in localStorage
     const savedCfg = localStorage.getItem(`cfg_${currentYear}_${m}`);
     if (savedCfg) {
       try {
         const p = JSON.parse(savedCfg);
-        monthlyConfigStore[m] = {
-          baseSalary: p.base_salary !== undefined ? p.base_salary : (p.baseSalary || 6300000),
-          positionAllowance: p.pos_allowance !== undefined ? p.pos_allowance : (p.positionAllowance || 2450000),
-          seniorityAllowance: p.sen_allowance !== undefined ? p.sen_allowance : (p.seniorityAllowance || 100000),
-          kpiCoeff: p.kpi_coeff !== undefined ? p.kpi_coeff : (p.kpiCoeff || 1.0),
-          allowanceGas: p.allowance_gas !== undefined ? p.allowance_gas : (p.allowanceGas || 500000),
-          allowanceHouse: p.allowance_house !== undefined ? p.allowance_house : (p.allowanceHouse || 500000),
-          allowanceChild: p.allowance_child !== undefined ? p.allowance_child : (p.allowanceChild || 0),
-          allowanceSafety: p.allowance_safety !== undefined ? p.allowance_safety : (p.allowanceSafety || 0),
-          allowanceNight: p.allowance_night !== undefined ? p.allowance_night : (p.allowanceNight !== undefined ? p.allowanceNight : 0),
-          allowanceMealNight: p.allowance_meal_night !== undefined ? p.allowance_meal_night : (p.allowanceMealNight !== undefined ? p.allowanceMealNight : 0),
-          isManualNight: p.is_manual_night !== undefined ? Boolean(p.is_manual_night) : Boolean(p.isManualNight),
-          allowancePeriod: p.allowance_period !== undefined ? p.allowance_period : (p.allowancePeriod || 0),
-          allowanceOther: p.allowance_other !== undefined ? p.allowance_other : (p.allowanceOther || 0),
-                    bonusAttendance: p.bonus_attendance !== undefined ? p.bonus_attendance : (p.bonusAttendance || 600000),
-          bonusFullAttendance: p.bonus_full_attendance !== undefined ? p.bonus_full_attendance : (p.bonusFullAttendance || 0),
-          bonusEfficiency: p.bonus_efficiency !== undefined ? p.bonus_efficiency : (p.bonusEfficiency || 0),
-          bonusQualityStar: p.bonus_quality_star !== undefined ? p.bonus_quality_star : (p.bonusQualityStar || 0),
-          bonusPerformance: p.bonus_performance !== undefined ? p.bonus_performance : (p.bonusPerformance || 0),
-          bonusKPI: p.bonus_kpi !== undefined ? p.bonus_kpi : (p.bonusKPI || 3050000),
-          bonusRecruitment: p.bonus_recruitment !== undefined ? p.bonus_recruitment : (p.bonusRecruitment || 0),
-          isTaxExempt: p.is_tax_exempt !== undefined ? p.is_tax_exempt : (p.isTaxExempt !== undefined ? p.isTaxExempt : 1),
-          bankAccount: p.bank_account || p.bankAccount || "STK: 102884878810",
-          bankName: p.bank_name || p.bankName || "VietinBank"
-        };
+        monthlyConfigStore[m] = normalizeConfig(p);
       } catch(e) {}
     }
 
@@ -1749,6 +1962,9 @@ function initializeDefaultData() {
       configs: JSON.parse(JSON.stringify(monthlyConfigStore))
     };
   }
+
+  window.monthlyStore = monthlyStore;
+  window.monthlyConfigStore = monthlyConfigStore;
 }
 
 // ========================================================
@@ -2952,7 +3168,11 @@ window.switchYear = async function(newYear) {
   saveYearToMemoryAndStorage(currentYear);
   flushAutoSave();
 
-  // 2. Cập nhật năm mới
+  // 2. Lấy cấu hình lương mới nhất của năm cũ (ưu tiên tháng 12 hoặc tháng gần nhất đã sửa)
+  const latestSalaryCfg = getLatestSalaryConfigForEmployee(currentEmpId, currentYear, 12);
+
+  // 3. Cập nhật năm mới
+  const oldYear = currentYear;
   currentYear = newYear;
   addAvailableYear(newYear);
 
@@ -2963,13 +3183,17 @@ window.switchYear = async function(newYear) {
   const selectYearSummary = document.getElementById("selectYearSummary");
   if (selectYearSummary) selectYearSummary.value = currentYear.toString();
 
-  // 3. Khởi tạo/nạp dữ liệu năm mới
-  initializeDefaultData();
+  // 4. Khởi tạo/nạp dữ liệu năm mới với cấu hình kế thừa từ năm cũ
+  initializeDefaultData(latestSalaryCfg);
   await loadAllMonthsFromBackendOrStorage(currentYear);
   loadConfigStoreToInputs(currentMonth);
 
-  // 4. Render lại toàn bộ giao diện
+  // 5. Render lại toàn bộ giao diện
   renderUnifiedTable();
+  renderAnnualLeaveTable();
+  recalculateMonth();
+  renderYearSummary();
+  renderMultiYearSummary();
   showToast(`📅 Đã chuyển sang làm việc với dữ liệu Năm ${currentYear}!`);
 };
 

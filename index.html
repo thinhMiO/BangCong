@@ -1465,7 +1465,7 @@
 
   <!-- MODAL: THÊM / SỬA NHÂN VIÊN -->
   <div id="modalEmployee" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 hidden no-print">
-    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full border border-slate-200 overflow-hidden transform transition-all max-h-[92vh] flex flex-col">
+    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden transform transition-all max-h-[92vh] flex flex-col">
       <div class="bg-gradient-to-r from-blue-700 to-indigo-700 text-white px-5 py-3.5 flex items-center justify-between shrink-0">
         <h3 id="modalEmployeeTitle" class="font-bold text-base flex items-center gap-2">
           <i class="fa-solid fa-user-plus"></i> Thêm Nhân Viên Mới
@@ -1476,36 +1476,29 @@
       </div>
       <form id="formEmployee" class="p-5 space-y-3.5 text-xs md:text-sm overflow-y-auto flex-1">
         <input type="hidden" id="modalEmpMode" value="add">
-        <div>
-          <label class="block font-semibold text-slate-700 mb-1">Họ và tên nhân viên: <span class="text-rose-500">*</span></label>
-          <input type="text" id="modalEmpName" required placeholder="Ví dụ: Trần Văn Nam"
-            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-medium outline-none">
+        
+        <!-- THÔNG TIN NHÂN SỰ CƠ BẢN -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Họ và tên nhân viên: <span class="text-rose-500">*</span></label>
+            <input type="text" id="modalEmpName" required placeholder="Ví dụ: Trần Văn Nam"
+              class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-medium outline-none">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Mã số thẻ nhân viên: <span class="text-rose-500">*</span></label>
+            <input type="text" id="modalEmpCardId" required placeholder="Ví dụ: 1028, 0102, NV01..."
+              class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono font-bold text-blue-700 outline-none">
+          </div>
         </div>
-        <div>
-          <label class="block font-semibold text-slate-700 mb-1">Mã số thẻ nhân viên: <span class="text-rose-500">*</span></label>
-          <input type="text" id="modalEmpCardId" required placeholder="Ví dụ: 1028, 0102, NV01..."
-            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono font-bold text-blue-700 outline-none">
-          <p class="text-[11px] text-slate-500 mt-0.5">* Dùng để nhân viên tra cứu đúng bảng công & lương của mình.</p>
-        </div>
+
         <div>
           <label class="block font-semibold text-slate-700 mb-1">Bộ phận / Phòng ban:</label>
           <input type="text" id="modalEmpDept" placeholder="Ví dụ: 工程部 (Bộ phận Kỹ thuật), Xưởng 1..."
             class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-medium outline-none">
         </div>
-        <div class="grid grid-cols-2 gap-2">
-          <div>
-            <label class="block font-semibold text-slate-700 mb-1">Tổng ngày phép (年假总天数):</label>
-            <input type="number" id="modalEmpAnnualLeave" min="0" max="100" step="any" placeholder="10"
-              class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono font-bold text-amber-800 outline-none">
-          </div>
-          <div>
-            <label class="block font-semibold text-slate-700 mb-1">Số phép đã nghỉ (已用):</label>
-            <input type="number" id="modalEmpAnnualLeaveUsed" min="0" max="100" step="any" placeholder="0"
-              class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono font-bold text-purple-800 outline-none">
-          </div>
-        </div>
-        <p class="text-[11px] text-slate-500 mt-0.5">* Cứ đến ngày vào xưởng hàng tháng tự động cộng 1 ngày phép; Phép tồn tự động cộng dồn qua các năm.</p>
-        <div class="grid grid-cols-2 gap-2">
+
+        <!-- NGÀY VÀO XƯỞNG & THỬ VIỆC -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label class="block font-semibold text-slate-700 mb-1">Ngày vào xưởng (进厂日子):</label>
             <input type="text" id="modalEmpStartDate" placeholder="21/7/2025"
@@ -1517,29 +1510,150 @@
               class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-medium outline-none">
           </div>
         </div>
-        <!-- KHỐI THÔNG TIN LƯƠNG, PHỤ CẤP & TÀI KHOẢN NGÂN HÀNG RIÊNG TỪNG NGƯỜI -->
-        <div id="modalSalaryRow" class="space-y-2.5 bg-slate-50 p-3 rounded-lg border border-slate-200">
-          <div class="text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5 border-b border-slate-200 pb-1">
-            <i class="fa-solid fa-file-invoice-dollar text-emerald-600"></i> Mức Lương, PhỤ Cấp & Tài Khoản Riêng Biệt
+
+        <!-- NGÀY PHÉP NĂM -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Tổng ngày phép (年假总天数):</label>
+            <input type="number" id="modalEmpAnnualLeave" min="0" max="100" step="any" placeholder="10"
+              class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono font-bold text-amber-800 outline-none">
           </div>
           <div>
-            <label class="block font-semibold text-slate-700 text-xs mb-0.5">Lương cơ bản (LCB):</label>
-            <input type="number" id="modalEmpBaseSalary" step="any" placeholder="6300000"
-              class="w-full px-2.5 py-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 font-mono font-bold text-blue-700 text-xs outline-none">
+            <label class="block font-semibold text-slate-700 mb-1">Số phép đã nghỉ (已用):</label>
+            <input type="number" id="modalEmpAnnualLeaveUsed" min="0" max="100" step="any" placeholder="0"
+              class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono font-bold text-purple-800 outline-none">
           </div>
-          <div class="grid grid-cols-2 gap-2">
+        </div>
+        <p class="text-[11px] text-slate-500">* Cứ đến ngày vào xưởng hàng tháng tự động cộng 1 ngày phép; Phép tồn tự động cộng dồn qua các năm.</p>
+
+        <!-- KHỐI THÔNG TIN LƯƠNG, PHỤ CẤP & THƯỞNG RIÊNG TỪNG NGƯỜI -->
+        <div id="modalSalaryRow" class="space-y-3 bg-slate-50 p-3.5 rounded-lg border border-slate-200">
+          <div class="text-xs font-bold text-slate-800 uppercase flex items-center justify-between border-b border-slate-200 pb-1.5">
+            <span class="flex items-center gap-1.5">
+              <i class="fa-solid fa-file-invoice-dollar text-emerald-600"></i> Mức Lương & Các Khoản Cố Định Riêng Biệt
+            </span>
+            <span class="text-[10px] text-slate-500 font-normal lowercase">(áp dụng cả 12 tháng)</span>
+          </div>
+
+          <!-- Lương cơ bản & Chức vụ & Thâm niên -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div>
-              <label class="block font-semibold text-slate-700 text-xs mb-0.5">Phụ cấp chức vụ (VNĐ):</label>
+              <label class="block font-semibold text-slate-700 text-xs mb-0.5">Lương cơ bản (LCB):</label>
+              <input type="number" id="modalEmpBaseSalary" step="any" placeholder="6300000"
+                class="w-full px-2.5 py-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 font-mono font-bold text-blue-700 text-xs outline-none">
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-700 text-xs mb-0.5">Phụ cấp chức vụ:</label>
               <input type="number" id="modalEmpPosAllowance" step="any" placeholder="0"
                 class="w-full px-2.5 py-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 font-mono text-slate-800 text-xs outline-none">
             </div>
             <div>
-              <label class="block font-semibold text-slate-700 text-xs mb-0.5">Thâm niên (VNĐ):</label>
+              <label class="block font-semibold text-slate-700 text-xs mb-0.5">Thâm niên:</label>
               <input type="number" id="modalEmpSenAllowance" step="any" placeholder="0"
                 class="w-full px-2.5 py-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 font-mono text-slate-800 text-xs outline-none">
             </div>
           </div>
-          <div class="grid grid-cols-2 gap-2">
+
+          <!-- III. CÁC KHOẢN TRỢ CẤP -->
+          <div class="pt-2 border-t border-slate-200">
+            <div class="text-xs font-bold text-blue-800 mb-1.5 flex items-center gap-1">
+              <i class="fa-solid fa-hand-holding-dollar"></i> III. CÁC KHOẢN TRỢ CẤP (VNĐ):
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div>
+                <label class="block text-[11px] font-medium text-slate-700 mb-0.5">1. Xăng xe:</label>
+                <input type="number" id="modalEmpGas" step="any" placeholder="500000"
+                  class="w-full px-2 py-1 border border-slate-300 rounded text-xs num-font outline-none focus:ring-1 focus:ring-blue-500">
+              </div>
+              <div>
+                <label class="block text-[11px] font-medium text-slate-700 mb-0.5">2. Nhà ở:</label>
+                <input type="number" id="modalEmpHouse" step="any" placeholder="500000"
+                  class="w-full px-2 py-1 border border-slate-300 rounded text-xs num-font outline-none focus:ring-1 focus:ring-blue-500">
+              </div>
+              <div>
+                <label class="block text-[11px] font-medium text-slate-700 mb-0.5">3. Con nhỏ:</label>
+                <input type="number" id="modalEmpChild" step="any" placeholder="0"
+                  class="w-full px-2 py-1 border border-slate-300 rounded text-xs num-font outline-none focus:ring-1 focus:ring-blue-500">
+              </div>
+              <div>
+                <label class="block text-[11px] font-medium text-slate-700 mb-0.5">4. PCCC/An toàn:</label>
+                <input type="number" id="modalEmpSafety" step="any" placeholder="0"
+                  class="w-full px-2 py-1 border border-slate-300 rounded text-xs num-font outline-none focus:ring-1 focus:ring-blue-500">
+              </div>
+              <div>
+                <label class="block text-[11px] font-medium text-slate-700 mb-0.5">5. Ca đêm (30k/đêm):</label>
+                <input type="number" id="modalEmpNight" step="any" placeholder="0"
+                  class="w-full px-2 py-1 border border-slate-300 rounded text-xs num-font outline-none focus:ring-1 focus:ring-blue-500">
+              </div>
+              <div>
+                <label class="block text-[11px] font-medium text-slate-700 mb-0.5">6. Ăn đêm/10k ngày:</label>
+                <input type="number" id="modalEmpMealNight" step="any" placeholder="0"
+                  class="w-full px-2 py-1 border border-slate-300 rounded text-xs num-font outline-none focus:ring-1 focus:ring-blue-500">
+              </div>
+              <div>
+                <label class="block text-[11px] font-medium text-slate-700 mb-0.5">7. Kinh nguyệt:</label>
+                <input type="number" id="modalEmpPeriod" step="any" placeholder="0"
+                  class="w-full px-2 py-1 border border-slate-300 rounded text-xs num-font outline-none focus:ring-1 focus:ring-blue-500">
+              </div>
+              <div>
+                <label class="block text-[11px] font-medium text-slate-700 mb-0.5">8. Trợ cấp khác:</label>
+                <input type="number" id="modalEmpOther" step="any" placeholder="0"
+                  class="w-full px-2 py-1 border border-slate-300 rounded text-xs num-font outline-none focus:ring-1 focus:ring-blue-500">
+              </div>
+            </div>
+          </div>
+
+          <!-- IV. CÁC KHOẢN THƯỞNG -->
+          <div class="pt-2 border-t border-slate-200">
+            <div class="text-xs font-bold text-emerald-800 mb-1.5 flex items-center gap-1">
+              <i class="fa-solid fa-award"></i> IV. CÁC KHOẢN THƯỞNG (VNĐ):
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div>
+                <label class="block text-[11px] font-medium text-slate-700 mb-0.5">1. Chuyên cần:</label>
+                <input type="number" id="modalEmpBonusAtt" step="any" placeholder="600000"
+                  class="w-full px-2 py-1 border border-slate-300 rounded text-xs num-font outline-none focus:ring-1 focus:ring-blue-500">
+              </div>
+              <div>
+                <label class="block text-[11px] font-medium text-slate-700 mb-0.5">2. Đi làm đầy đủ:</label>
+                <input type="number" id="modalEmpBonusFullAtt" step="any" placeholder="0"
+                  class="w-full px-2 py-1 border border-slate-300 rounded text-xs num-font outline-none focus:ring-1 focus:ring-blue-500">
+              </div>
+              <div>
+                <label class="block text-[11px] font-medium text-slate-700 mb-0.5">3. Hiệu suất:</label>
+                <input type="number" id="modalEmpBonusEfficiency" step="any" placeholder="0"
+                  class="w-full px-2 py-1 border border-slate-300 rounded text-xs num-font outline-none focus:ring-1 focus:ring-blue-500">
+              </div>
+              <div>
+                <label class="block text-[11px] font-medium text-slate-700 mb-0.5">4. Sao sáng / CL:</label>
+                <input type="number" id="modalEmpBonusQualityStar" step="any" placeholder="0"
+                  class="w-full px-2 py-1 border border-slate-300 rounded text-xs num-font outline-none focus:ring-1 focus:ring-blue-500">
+              </div>
+              <div>
+                <label class="block text-[11px] font-medium text-slate-700 mb-0.5">5. Biểu hiện CV:</label>
+                <input type="number" id="modalEmpBonusPerformance" step="any" placeholder="0"
+                  class="w-full px-2 py-1 border border-slate-300 rounded text-xs num-font outline-none focus:ring-1 focus:ring-blue-500">
+              </div>
+              <div>
+                <label class="block text-[11px] font-medium text-slate-700 mb-0.5">6. Tiền thưởng KPI:</label>
+                <input type="number" id="modalEmpBonusKPI" step="any" placeholder="3050000"
+                  class="w-full px-2 py-1 border border-slate-300 rounded text-xs num-font outline-none focus:ring-1 focus:ring-blue-500">
+              </div>
+              <div>
+                <label class="block text-[11px] font-medium text-slate-700 mb-0.5">Hệ số KPI:</label>
+                <input type="number" id="modalEmpKpiCoeff" step="any" placeholder="1.0" min="0" max="3"
+                  class="w-full px-2 py-1 border border-slate-300 rounded text-xs num-font outline-none focus:ring-1 focus:ring-blue-500">
+              </div>
+              <div>
+                <label class="block text-[11px] font-medium text-slate-700 mb-0.5">7. Tuyển dụng:</label>
+                <input type="number" id="modalEmpBonusRecruitment" step="any" placeholder="0"
+                  class="w-full px-2 py-1 border border-slate-300 rounded text-xs num-font outline-none focus:ring-1 focus:ring-blue-500">
+              </div>
+            </div>
+          </div>
+
+          <!-- Thông tin tài khoản ngân hàng -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-200">
             <div>
               <label class="block font-semibold text-slate-700 text-xs mb-0.5">Số tài khoản (STK):</label>
               <input type="text" id="modalEmpBankAccount" placeholder="Ví dụ: STK: 102..."
@@ -1551,7 +1665,7 @@
                 class="w-full px-2.5 py-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 font-medium text-slate-800 text-xs outline-none">
             </div>
           </div>
-          <p class="text-[11px] text-slate-500 italic">* Các thông số này lưu riêng cho từng người. Bạn cũng có thể sửa trực tiếp trên bảng tính bất kỳ lúc nào.</p>
+          <p class="text-[11px] text-slate-500 italic">* Các thông số này lưu riêng cho từng người và áp dụng cho cả 12 tháng. Bạn cũng có thể sửa trực tiếp trên bảng tính bất kỳ lúc nào.</p>
         </div>
         <div class="pt-3 flex items-center justify-end gap-2 border-t border-slate-200 shrink-0">
           <button type="button" id="btnCancelEmpModal" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition">
@@ -1680,7 +1794,7 @@
   <div id="toastContainer" class="fixed bottom-14 xl:bottom-5 right-3 xl:right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
   <!-- SCRIPT (Thêm version để chống kẹt cache trình duyệt khi deploy) -->
-  <script src="app.js?v=20261120_step_any"></script>
+  <script src="app.js?v=20261120_raise_propagate"></script>
 </body>
 
 </html>
