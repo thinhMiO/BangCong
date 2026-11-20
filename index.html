@@ -236,6 +236,18 @@
 
       <!-- Quick Action Buttons & Backend Status -->
       <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
+        <!-- Auth Status & Logout Button -->
+        <span id="authBadge"
+          class="inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg bg-blue-50 text-blue-800 border border-blue-300 shadow-2xs"
+          title="Tài khoản đang đăng nhập">
+          <i class="fa-solid fa-user-check text-blue-600"></i> <span id="authBadgeText">Đang tải...</span>
+        </span>
+        <button id="btnAuthLogout" type="button"
+          class="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm rounded-lg font-medium transition flex items-center gap-1 border border-slate-300"
+          title="Đổi tài khoản hoặc đăng xuất tra cứu">
+          <i class="fa-solid fa-right-from-bracket text-slate-600"></i> <span class="hidden sm:inline">Đăng xuất</span>
+        </button>
+
         <!-- Cloud Status Indicator -->
         <span id="backendStatusBadge"
           class="inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-300"
@@ -313,7 +325,7 @@
         class="bg-cyan-banner border-2 border-cyan-400 rounded-t-lg p-2 sm:p-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2.5 shadow-sm">
         <div class="flex flex-wrap items-center gap-2 sm:gap-3">
           <!-- NHÂN VIÊN SELECTOR & MANAGEMENT -->
-          <div class="flex items-center gap-1 sm:gap-1.5 bg-white/95 px-2 sm:px-3 py-1 rounded-md border border-cyan-500 shadow-xs max-w-full">
+          <div id="empSelectorWrapper" class="flex items-center gap-1 sm:gap-1.5 bg-white/95 px-2 sm:px-3 py-1 rounded-md border border-cyan-500 shadow-xs max-w-full">
             <label for="selectEmployee" class="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1 shrink-0">
               <i class="fa-solid fa-user-tie text-blue-600"></i> NV:
             </label>
@@ -322,12 +334,13 @@
               title="Chọn hồ sơ nhân viên để xem và chấm công">
               <!-- Render động danh sách nhân viên -->
             </select>
-            <div class="flex items-center gap-0.5 sm:gap-1 shrink-0">
+            <span id="empLockedLabel" class="hidden font-bold text-blue-800 text-xs sm:text-sm truncate"></span>
+            <div id="empAdminControls" class="flex items-center gap-0.5 sm:gap-1 shrink-0">
               <button type="button" id="btnAddNewEmp" class="px-1.5 sm:px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold shadow-xs flex items-center gap-1 transition" title="Thêm nhân viên mới">
                 <i class="fa-solid fa-user-plus"></i> <span class="hidden sm:inline">Thêm</span>
               </button>
-              <button type="button" id="btnRenameEmp" class="px-1.5 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded text-xs font-medium transition" title="Đổi tên / Bộ phận">
-                <i class="fa-solid fa-pen"></i>
+              <button type="button" id="btnRenameEmp" class="px-1.5 sm:px-2 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded text-xs font-semibold flex items-center gap-1 transition" title="Admin sửa toàn bộ thông tin hồ sơ, mức lương và ngày phép">
+                <i class="fa-solid fa-user-pen"></i> <span class="hidden sm:inline">Sửa TT</span>
               </button>
               <button type="button" id="btnDeleteEmp" class="px-1.5 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-300 rounded text-xs font-medium transition" title="Xóa nhân viên này">
                 <i class="fa-solid fa-trash-can"></i>
@@ -558,8 +571,83 @@
           </div>
         </div>
 
-        <!-- RIGHT: Salary & Compensation Table (With ALL Allowances from new photo) -->
+        <!-- RIGHT: Salary & Compensation Table & Annual Leave Table -->
         <div id="colSalary" class="xl:col-span-5 overflow-x-auto xl:block">
+
+          <!-- BẢNG THEO DÕI NGHỈ PHÉP NĂM & PHÉP TỒN (年假管理 - Khớp 100% mẫu yêu cầu) -->
+          <div class="mb-2.5 overflow-x-auto">
+            <table class="w-full text-xs border-collapse border border-black shadow-sm text-center min-w-[500px]" id="tableAnnualLeave">
+              <thead>
+                <tr class="border-b border-black text-slate-900 font-bold">
+                  <!-- Cột 1: Ngày vào xưởng (Vàng #FFFF00) -->
+                  <th class="border border-black py-1.5 px-2 bg-[#FFFF00] w-[20%]">
+                    <div class="font-bold text-xs text-slate-900">Ngày vào xưởng</div>
+                    <div class="text-[11px] font-semibold text-slate-900">进厂日子</div>
+                  </th>
+                  <!-- Cột 2: Ngày hết thử việc (Vàng #FFFF00) -->
+                  <th class="border border-black py-1.5 px-2 bg-[#FFFF00] w-[20%]">
+                    <div class="font-bold text-xs text-slate-900">Ngày hết thử việc</div>
+                    <div class="text-[11px] font-semibold text-slate-900">试用期到期时间</div>
+                  </th>
+                  <!-- Cột 3: Tổng ngày phép (Cam nhạt #FCE4D6) -->
+                  <th class="border border-black py-1.5 px-2 bg-[#FCE4D6] w-[20%]">
+                    <div class="font-bold text-xs text-slate-900">Tổng ngày phép</div>
+                    <div class="text-[11px] font-semibold text-slate-900">年假总天数</div>
+                  </th>
+                  <!-- Cột 4: Số ngày phép đã nghỉ (Cam nhạt #FCE4D6) -->
+                  <th class="border border-black py-1.5 px-2 bg-[#FCE4D6] w-[20%]">
+                    <div class="font-bold text-xs text-slate-900">Số ngày phép đã nghỉ</div>
+                    <div class="text-[11px] font-semibold text-slate-900">已用</div>
+                  </th>
+                  <!-- Cột 5: Số ngày phép còn lại (Cam nhạt #FCE4D6) -->
+                  <th class="border border-black py-1.5 px-2 bg-[#FCE4D6] w-[20%]">
+                    <div class="font-bold text-xs text-slate-900">Số ngày phép còn lại</div>
+                    <div class="text-[11px] font-semibold text-slate-900">剩下天数</div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="bg-white font-bold text-xs sm:text-sm">
+                  <!-- Cột 1: Ngày vào xưởng -->
+                  <td class="border border-black py-1 px-1 bg-yellow-50/20">
+                    <input type="text" id="empStartDate" placeholder="21/7/2025" value="21/7/2025"
+                      class="w-full text-center font-bold text-slate-800 border border-transparent hover:border-slate-300 rounded px-1 py-1 outline-none focus:bg-white focus:ring-1 focus:ring-blue-500"
+                      title="Ngày vào xưởng (进厂日子) - Admin có thể sửa">
+                  </td>
+                  <!-- Cột 2: Ngày hết thử việc -->
+                  <td class="border border-black py-1 px-1 bg-yellow-50/20">
+                    <input type="text" id="empProbationEndDate" placeholder="20/9/2025" value="20/9/2025"
+                      class="w-full text-center font-bold text-slate-800 border border-transparent hover:border-slate-300 rounded px-1 py-1 outline-none focus:bg-white focus:ring-1 focus:ring-blue-500"
+                      title="Ngày hết thử việc (试用期到期时间) - Admin có thể sửa">
+                  </td>
+                  <!-- Cột 3: Tổng ngày phép (Admin sửa được, tự động cộng dồn qua nhiều năm & tích lũy theo ngày vào xưởng) -->
+                  <td class="border border-black py-1 px-1 text-blue-800 bg-amber-50/20">
+                    <div class="inline-flex items-center justify-center gap-1 w-full">
+                      <input type="number" id="annualLeaveTotal" min="0" max="60" step="0.5" value="10"
+                        class="w-14 sm:w-16 text-center font-bold font-mono text-blue-800 border border-transparent hover:border-slate-300 rounded px-1 py-1 outline-none focus:bg-white focus:ring-1 focus:ring-blue-500"
+                        title="Admin có thể sửa tổng ngày phép năm của nhân viên">
+                    </div>
+                    <span id="annualLeaveCarryNote" class="block text-[10px] text-blue-700 font-semibold mt-0.5 text-center"></span>
+                  </td>
+                  <!-- Cột 4: Số ngày phép đã nghỉ (Admin sửa được trực tiếp cho người cũ đã nghỉ) -->
+                  <td class="border border-black py-1 px-1 text-purple-800 bg-purple-50/20">
+                    <div class="inline-flex items-center justify-center gap-1 w-full">
+                      <input type="number" id="annualLeaveUsed" min="0" max="60" step="0.5" value="0"
+                        class="w-14 sm:w-16 text-center font-bold font-mono text-purple-800 border border-transparent hover:border-slate-300 rounded px-1 py-1 outline-none focus:bg-white focus:ring-1 focus:ring-blue-500"
+                        title="Admin có thể sửa trực tiếp số ngày phép đã nghỉ (dành cho người cũ đã nghỉ hoặc chưa chấm trên web)">
+                    </div>
+                    <span id="annualLeaveMonthNote" class="block text-[10px] font-normal text-slate-500 mt-0.5 text-center">(Tháng này: 0 ngày)</span>
+                  </td>
+                  <!-- Cột 5: Số ngày phép còn lại (Phép tồn = Tổng - Đã nghỉ) -->
+                  <td class="border border-black py-1.5 px-1.5 bg-emerald-50/20">
+                    <span id="annualLeaveRemain" class="font-mono font-bold text-emerald-700 text-sm md:text-base">10</span>
+                    <span id="annualLeaveStatusBadge" class="block text-[10px] font-semibold text-emerald-700 mt-0.5">🌿 Còn phép</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
           <table class="w-full text-xs border-collapse border border-black shadow-sm min-w-[480px] md:min-w-full" id="tableSalaryUnified">
             <!-- Part 1: Employee info & standard params -->
             <thead>
@@ -571,12 +659,28 @@
               </tr>
             </thead>
             <tbody>
-              <!-- Row 1: Họ tên & Ngày công chuẩn -->
+              <!-- Row 1: Họ tên & Mã số thẻ -->
               <tr>
                 <td class="border border-black px-2 py-1.5 font-bold bg-slate-50">Họ và tên</td>
                 <td class="border border-black px-1 py-1">
                   <input type="text" id="empName" value="Nguyễn Công Thịnh"
                     class="table-input font-medium text-left px-2 bg-amber-50/40" title="Nhấp để sửa họ tên">
+                </td>
+                <td class="border border-black px-2 py-1.5 font-bold bg-slate-50 flex items-center justify-between text-blue-900">
+                  <span>Mã số thẻ</span>
+                  <span class="auto-badge bg-blue-100 text-blue-800" title="Dùng để đăng nhập tra cứu">Định danh</span>
+                </td>
+                <td class="border border-black px-1 py-1">
+                  <input type="text" id="empCardId" value="1028"
+                    class="table-input font-bold text-center text-blue-700 bg-amber-50/40 num-font" title="Mã số thẻ nhân viên">
+                </td>
+              </tr>
+              <!-- Row 2: Bộ phận & Ngày công chuẩn -->
+              <tr>
+                <td class="border border-black px-2 py-1.5 font-bold bg-slate-50">Bộ phận</td>
+                <td class="border border-black px-1 py-1">
+                  <input type="text" id="empDept" value="工程部 (Bộ phận Kỹ thuật)"
+                    class="table-input font-medium text-left px-2 bg-amber-50/40" title="Nhấp để sửa bộ phận">
                 </td>
                 <td class="border border-black px-2 py-1.5 font-bold bg-slate-50 flex items-center justify-between">
                   <span>Ngày công chuẩn</span>
@@ -585,12 +689,12 @@
                 <td class="border border-black px-2 py-1 text-right font-bold text-blue-700 num-font" id="stdWorkDays">
                   27</td>
               </tr>
-              <!-- Row 2: Bộ phận & Số giờ tiêu chuẩn -->
+              <!-- Row 3: LCB & Số giờ tiêu chuẩn -->
               <tr>
-                <td class="border border-black px-2 py-1.5 font-bold bg-slate-50">Bộ phận</td>
+                <td class="border border-black px-2 py-1.5 font-bold bg-slate-50">Lương cơ bản (LCB)</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="text" id="empDept" value="工程部 (Bộ phận Kỹ thuật)"
-                    class="table-input font-medium text-left px-2 bg-amber-50/40" title="Nhấp để sửa bộ phận">
+                  <input type="number" id="baseSalary" value="6300000" step="50000"
+                    class="table-input font-bold text-right px-2 bg-amber-50/40" title="Nhấp để sửa Lương cơ bản">
                 </td>
                 <td class="border border-black px-2 py-1.5 font-bold bg-slate-50 flex items-center justify-between">
                   <span>Số giờ tiêu chuẩn</span>
@@ -599,12 +703,12 @@
                 <td class="border border-black px-2 py-1 text-right font-bold text-slate-800 num-font"
                   id="stdWorkHours">216</td>
               </tr>
-              <!-- Row 3: LCB & Đơn giá giờ -->
+              <!-- Row 4: Phụ cấp chức vụ & Đơn giá giờ -->
               <tr>
-                <td class="border border-black px-2 py-1.5 font-bold bg-slate-50">Lương cơ bản (LCB)</td>
+                <td class="border border-black px-2 py-1.5 font-bold bg-slate-50">Phụ cấp chức vụ</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="baseSalary" value="6300000" step="50000"
-                    class="table-input font-bold text-right px-2 bg-amber-50/40" title="Nhấp để sửa Lương cơ bản">
+                  <input type="number" id="positionAllowance" value="2450000" step="50000"
+                    class="table-input font-bold text-right px-2 bg-amber-50/40" title="Nhấp để sửa phụ cấp chức vụ">
                 </td>
                 <td class="border border-black px-2 py-1.5 font-bold bg-slate-50 flex items-center justify-between">
                   <span>Đơn giá giờ</span>
@@ -613,12 +717,12 @@
                 <td class="border border-black px-2 py-1 text-right font-bold text-amber-700 num-font" id="hourlyRate">
                   40.972</td>
               </tr>
-              <!-- Row 4: Phụ cấp chức vụ & Hệ số KPI -->
+              <!-- Row 5: Thâm niên & Hệ số KPI -->
               <tr>
-                <td class="border border-black px-2 py-1.5 font-bold bg-slate-50">Phụ cấp chức vụ</td>
+                <td class="border border-black px-2 py-1.5 font-bold bg-slate-50">Thâm niên</td>
                 <td class="border border-black px-1 py-1">
-                  <input type="number" id="positionAllowance" value="2450000" step="50000"
-                    class="table-input font-bold text-right px-2 bg-amber-50/40" title="Nhấp để sửa phụ cấp chức vụ">
+                  <input type="number" id="seniorityAllowance" value="100000" step="50000"
+                    class="table-input font-bold text-right px-2 bg-amber-50/40" title="Nhấp để sửa phụ cấp thâm niên">
                 </td>
                 <td class="border border-black px-2 py-1.5 font-bold bg-slate-50">Hệ số KPI</td>
                 <td class="border border-black px-1 py-1">
@@ -626,20 +730,20 @@
                     class="table-input font-bold text-center bg-amber-50/40 num-font" title="Nhấp để sửa hệ số KPI">
                 </td>
               </tr>
-              <!-- Row 5: Thâm niên & Lương đóng BH -->
+              <!-- Row 6: Lương đóng BH & Khóa bảo mật MST -->
               <tr>
-                <td class="border border-black px-2 py-1.5 font-bold bg-slate-50">Thâm niên</td>
-                <td class="border border-black px-1 py-1">
-                  <input type="number" id="seniorityAllowance" value="100000" step="50000"
-                    class="table-input font-bold text-right px-2 bg-amber-50/40" title="Nhấp để sửa phụ cấp thâm niên">
-                </td>
-                <td
-                  class="border border-black px-2 py-1.5 font-bold bg-slate-50 text-indigo-800 flex items-center justify-between">
+                <td class="border border-black px-2 py-1.5 font-bold bg-slate-50 text-indigo-800 flex items-center justify-between">
                   <span>Lương đóng BH</span>
                   <span class="auto-badge" title="= LCB + Chức vụ + Thâm niên">Tự động</span>
                 </td>
-                <td class="border border-black px-2 py-1 text-right font-bold text-indigo-700 num-font"
-                  id="insuranceSalary">8.850.000</td>
+                <td class="border border-black px-2 py-1 text-right font-bold text-indigo-700 num-font" id="insuranceSalary">
+                  8.850.000</td>
+                <td class="border border-black px-2 py-1.5 font-bold bg-slate-50 text-emerald-800">
+                  <span>Bảo mật</span>
+                </td>
+                <td class="border border-black px-2 py-1 text-center font-semibold text-emerald-700 text-xs">
+                  <i class="fa-solid fa-lock text-emerald-600"></i> Theo MST
+                </td>
               </tr>
 
               <!-- PART 2: MỤC TÍNH LƯƠNG TỰ ĐỘNG -->
@@ -861,13 +965,14 @@
                 <td class="border border-black px-2 py-1.5 text-center text-slate-400">-</td>
                 <td class="border border-black px-2 py-1.5 text-right text-slate-700 num-font font-semibold px-2">
                   <div class="flex items-center justify-between">
-                    <span class="text-[10px] font-normal text-slate-500 uppercase tracking-wider">Tiêu chuẩn:</span>
-                    <span id="stdTotalBonus">3.650.000</span>
+                    <span class="text-[10px] font-normal text-slate-500 uppercase tracking-wider">Tiêu chuẩn</span>
+                    <span id="stdTotalBonus"></span>
                   </div>
                 </td>
                 <td class="border border-black px-2 py-1.5 text-right text-emerald-700 num-font font-bold"
-                  id="totalBonus">3.650.000</td>
+                  id="totalBonus"></td>
               </tr>
+              <!-- 1. Tiền thưởng chuyên cần -->
               <tr>
                 <td class="border border-black px-2 py-1 pl-4 flex items-center justify-between">
                   <span>1. Tiền thưởng chuyên cần</span>
@@ -882,8 +987,57 @@
                 <td class="border border-black px-2 py-1 text-right font-bold text-slate-900 num-font"
                   id="amountBonusAtt">600.000</td>
               </tr>
+              <!-- 2. Thưởng khác/ Thưởng đi làm đầy đủ -->
               <tr>
-                <td class="border border-black px-2 py-1 pl-4">2. Tiền thưởng thành tích KPI</td>
+                <td class="border border-black px-2 py-1 pl-4">2. Thưởng khác/ Thưởng đi làm đầy đủ</td>
+                <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
+                <td class="border border-black px-1 py-1">
+                  <input type="number" id="bonusFullAttendance" value="0" step="50000"
+                    class="table-input text-right font-medium px-2 num-font bg-amber-50/40" placeholder="0"
+                    title="Thưởng khác / Thưởng đi làm đầy đủ">
+                </td>
+                <td class="border border-black px-2 py-1 text-right font-bold text-slate-900 num-font"
+                  id="amountBonusFullAtt">0</td>
+              </tr>
+              <!-- 3. Tiền thưởng hiệu suất -->
+              <tr>
+                <td class="border border-black px-2 py-1 pl-4">3. Tiền thưởng hiệu suất</td>
+                <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
+                <td class="border border-black px-1 py-1">
+                  <input type="number" id="bonusEfficiency" value="0" step="50000"
+                    class="table-input text-right font-medium px-2 num-font bg-amber-50/40" placeholder="0"
+                    title="Tiền thưởng hiệu suất">
+                </td>
+                <td class="border border-black px-2 py-1 text-right font-bold text-slate-900 num-font"
+                  id="amountBonusEfficiency">0</td>
+              </tr>
+              <!-- 4. Khen thưởng sao sáng,ngôi sao chất lượng -->
+              <tr>
+                <td class="border border-black px-2 py-1 pl-4">4. Khen thưởng sao sáng,ngôi sao chất lượng</td>
+                <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
+                <td class="border border-black px-1 py-1">
+                  <input type="number" id="bonusQualityStar" value="0" step="50000"
+                    class="table-input text-right font-medium px-2 num-font bg-amber-50/40" placeholder="0"
+                    title="Khen thưởng sao sáng, ngôi sao chất lượng">
+                </td>
+                <td class="border border-black px-2 py-1 text-right font-bold text-slate-900 num-font"
+                  id="amountBonusQualityStar">0</td>
+              </tr>
+              <!-- 5. Thưởng biểu hiện công việc -->
+              <tr>
+                <td class="border border-black px-2 py-1 pl-4">5. Thưởng biểu hiện công việc</td>
+                <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
+                <td class="border border-black px-1 py-1">
+                  <input type="number" id="bonusPerformance" value="0" step="50000"
+                    class="table-input text-right font-medium px-2 num-font bg-amber-50/40" placeholder="0"
+                    title="Thưởng biểu hiện công việc">
+                </td>
+                <td class="border border-black px-2 py-1 text-right font-bold text-slate-900 num-font"
+                  id="amountBonusPerformance">0</td>
+              </tr>
+              <!-- 6. Tiền thưởng thành tích KPI -->
+              <tr>
+                <td class="border border-black px-2 py-1 pl-4">6. Tiền thưởng thành tích KPI</td>
                 <td class="border border-black px-2 py-1 text-center text-slate-600">
                   <div class="inline-flex items-center justify-center gap-1">
                     <span id="labelKPIBonus">Hệ số:</span>
@@ -899,6 +1053,18 @@
                 </td>
                 <td class="border border-black px-2 py-1 text-right font-bold text-slate-900 num-font"
                   id="amountBonusKPI">3.050.000</td>
+              </tr>
+              <!-- 7. Thưởng tuyển dụng(giới thiệu&tự ứng tuyển) -->
+              <tr>
+                <td class="border border-black px-2 py-1 pl-4">7. Thưởng tuyển dụng(giới thiệu&tự ứng tuyển)</td>
+                <td class="border border-black px-2 py-1 text-center text-slate-400">-</td>
+                <td class="border border-black px-1 py-1">
+                  <input type="number" id="bonusRecruitment" value="0" step="50000"
+                    class="table-input text-right font-medium px-2 num-font bg-amber-50/40" placeholder="0"
+                    title="Thưởng tuyển dụng (giới thiệu & tự ứng tuyển)">
+                </td>
+                <td class="border border-black px-2 py-1 text-right font-bold text-slate-900 num-font"
+                  id="amountBonusRecruitment">0</td>
               </tr>
 
               <!-- V. TỔNG THU NHẬP -->
@@ -1093,6 +1259,7 @@
             <select id="selectEmployeeSummary" class="font-bold text-blue-800 text-xs bg-transparent outline-none cursor-pointer max-w-[170px]" title="Chuyển xem bảng thống kê của nhân viên khác">
               <!-- Render động danh sách nhân viên -->
             </select>
+            <span id="empLockedSummaryLabel" class="hidden font-bold text-blue-800 text-xs truncate"></span>
           </div>
 
           <!-- Bộ chuyển năm nhanh ngay trong View Thống Kê -->
@@ -1131,7 +1298,7 @@
       </div>
 
       <!-- Top Summary Cards -->
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3 my-3">
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-3 my-3">
         <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 shadow-2xs">
           <div class="text-xs text-blue-700 font-semibold uppercase">Tổng Giờ Làm Cả Năm</div>
           <div class="text-xl md:text-2xl font-bold text-blue-950 font-mono mt-1" id="kpiTotalHours">2.592 h</div>
@@ -1143,20 +1310,29 @@
           <div class="text-[11px] text-slate-500 mt-0.5">Bình quân ~114 giờ OT/tháng</div>
         </div>
         <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 shadow-2xs">
-          <div class="text-xs text-amber-800 font-semibold uppercase">Tổng Thu Nhập Cả Năm (Gross)</div>
+          <div class="text-xs text-amber-800 font-semibold uppercase">Tổng Thu Nhập (Gross)</div>
           <div class="text-xl md:text-2xl font-bold text-amber-950 font-mono mt-1" id="kpiTotalGross">254.187.504 đ
           </div>
           <div class="text-[11px] text-slate-500 mt-0.5">Bao gồm lương, OT, trợ cấp, thưởng</div>
         </div>
         <div class="bg-emerald-50 border border-emerald-300 rounded-xl p-3 shadow-2xs">
           <div class="text-xs text-emerald-800 font-semibold uppercase flex items-center justify-between">
-            <span>TỔNG THỰC LĨNH CẢ NĂM (NET)</span>
+            <span>TỔNG THỰC LĨNH (NET)</span>
             <i class="fa-solid fa-trophy text-emerald-600"></i>
           </div>
           <div class="text-xl md:text-2xl font-bold text-emerald-800 font-mono mt-1" id="kpiTotalNet">242.505.504 đ
           </div>
           <div class="text-[11px] text-emerald-700 font-semibold mt-0.5" id="kpiAvgNet">Bình quân: ~20.208.792 đ/tháng
           </div>
+        </div>
+        <!-- Thẻ Phép Tồn Năm -->
+        <div class="bg-[#FCE4D6]/70 border border-orange-300 rounded-xl p-3 shadow-2xs col-span-2 sm:col-span-1">
+          <div class="text-xs text-orange-900 font-bold uppercase flex items-center justify-between">
+            <span>Phép Tồn Năm (年假)</span>
+            <i class="fa-solid fa-calendar-check text-orange-700"></i>
+          </div>
+          <div class="text-xl md:text-2xl font-bold text-orange-950 font-mono mt-1" id="kpiAnnualLeaveRemain">12 ngày</div>
+          <div class="text-[11px] text-slate-600 mt-0.5" id="kpiAnnualLeaveSub">Đã nghỉ: 0 / 12 ngày</div>
         </div>
       </div>
 
@@ -1306,9 +1482,40 @@
             class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-medium outline-none">
         </div>
         <div>
+          <label class="block font-semibold text-slate-700 mb-1">Mã số thẻ nhân viên: <span class="text-rose-500">*</span></label>
+          <input type="text" id="modalEmpCardId" required placeholder="Ví dụ: 1028, 0102, NV01..."
+            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono font-bold text-blue-700 outline-none">
+          <p class="text-[11px] text-slate-500 mt-0.5">* Dùng để nhân viên tra cứu đúng bảng công & lương của mình.</p>
+        </div>
+        <div>
           <label class="block font-semibold text-slate-700 mb-1">Bộ phận / Phòng ban:</label>
           <input type="text" id="modalEmpDept" placeholder="Ví dụ: 工程部 (Bộ phận Kỹ thuật), Xưởng 1..."
             class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-medium outline-none">
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Tổng ngày phép (年假总天数):</label>
+            <input type="number" id="modalEmpAnnualLeave" min="0" max="100" step="0.5" placeholder="10"
+              class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono font-bold text-amber-800 outline-none">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Số phép đã nghỉ (已用):</label>
+            <input type="number" id="modalEmpAnnualLeaveUsed" min="0" max="100" step="0.5" placeholder="0"
+              class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono font-bold text-purple-800 outline-none">
+          </div>
+        </div>
+        <p class="text-[11px] text-slate-500 mt-0.5">* Cứ đến ngày vào xưởng hàng tháng tự động cộng 1 ngày phép; Phép tồn tự động cộng dồn qua các năm.</p>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Ngày vào xưởng (进厂日子):</label>
+            <input type="text" id="modalEmpStartDate" placeholder="21/7/2025"
+              class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-medium outline-none">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Ngày hết thử việc (试用期到期时间):</label>
+            <input type="text" id="modalEmpProbationEndDate" placeholder="20/9/2025"
+              class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-medium outline-none">
+          </div>
         </div>
         <!-- KHỐI THÔNG TIN LƯƠNG, PHỤ CẤP & TÀI KHOẢN NGÂN HÀNG RIÊNG TỪNG NGƯỜI -->
         <div id="modalSalaryRow" class="space-y-2.5 bg-slate-50 p-3 rounded-lg border border-slate-200">
@@ -1381,11 +1588,99 @@
     </div>
   </div>
 
+  <!-- AUTHENTICATION / TRA CỨU MODAL (BẢO MẬT NHÂN VIÊN) -->
+  <div id="authModal" class="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-3 hidden no-print">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-slate-200 overflow-hidden transform transition-all">
+      <!-- Header -->
+      <div class="bg-gradient-to-r from-blue-700 to-indigo-800 text-white p-5 text-center relative">
+        <div class="w-12 h-12 mx-auto mb-2 rounded-full bg-white/10 flex items-center justify-center text-2xl">
+          <i class="fa-solid fa-id-card-clip"></i>
+        </div>
+        <h2 class="text-lg sm:text-xl font-bold tracking-tight">TRA CỨU BẢNG LƯƠNG & CHẤM CÔNG</h2>
+        <p class="text-xs text-blue-100 mt-1">Hệ thống phân quyền: Nhân viên của ai xem của người đó</p>
+      </div>
+
+      <!-- Tab Switcher (Nhân viên vs Quản lý) -->
+      <div class="flex border-b border-slate-200 bg-slate-50 text-xs sm:text-sm">
+        <button type="button" id="tabLoginEmployee"
+          class="flex-1 py-3 font-bold border-b-2 border-blue-600 text-blue-700 bg-white flex items-center justify-center gap-1.5 transition">
+          <i class="fa-solid fa-user"></i> Nhân viên tra cứu
+        </button>
+        <button type="button" id="tabLoginAdmin"
+          class="flex-1 py-3 font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center justify-center gap-1.5 transition">
+          <i class="fa-solid fa-shield-halved"></i> Quản lý (Admin)
+        </button>
+      </div>
+
+      <!-- FORM 1: NHÂN VIÊN TRA CỨU THEO TÊN & MÃ SỐ THẺ -->
+      <form id="formLoginEmployee" class="p-5 space-y-4 text-xs sm:text-sm">
+        <div id="loginEmpError" class="hidden p-2.5 rounded-lg bg-rose-50 border border-rose-300 text-rose-700 font-medium text-xs flex items-center gap-2">
+          <i class="fa-solid fa-circle-exclamation shrink-0 text-rose-600"></i>
+          <span id="loginEmpErrorText">Họ tên hoặc Mã số thẻ không đúng!</span>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">
+            <i class="fa-solid fa-user-tag text-blue-600"></i> Họ và tên nhân viên: <span class="text-rose-500">*</span>
+          </label>
+          <input type="text" id="loginEmpName" list="loginEmpDatalist" required placeholder="Nhập họ tên ..."
+            class="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-semibold text-slate-800 outline-none shadow-2xs">
+          <datalist id="loginEmpDatalist">
+            <!-- Render động danh sách tên nhân viên -->
+          </datalist>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">
+            <i class="fa-solid fa-credit-card text-blue-600"></i> Mã số thẻ: <span class="text-rose-500">*</span>
+          </label>
+          <input type="text" id="loginEmpCardId" required placeholder="Nhập mã số thẻ (VD: 1028)..."
+            class="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono font-bold text-blue-700 text-sm outline-none shadow-2xs">
+          <p class="text-[11px] text-slate-500 mt-1 italic flex items-center gap-1">
+            <i class="fa-solid fa-shield text-slate-400"></i> Hệ thống tự động kiểm tra Tên & Mã thẻ để hiển thị bảng của bạn.
+          </p>
+        </div>
+
+        <button type="submit"
+          class="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold rounded-lg shadow-sm transition flex items-center justify-center gap-2 text-sm">
+          <i class="fa-solid fa-magnifying-glass"></i> Xem Bảng Chấm Công & Lương
+        </button>
+
+      </form>
+
+      <!-- FORM 2: QUẢN LÝ / ADMIN -->
+      <form id="formLoginAdmin" class="p-5 space-y-4 text-xs sm:text-sm hidden">
+        <div id="loginAdminError" class="hidden p-2.5 rounded-lg bg-rose-50 border border-rose-300 text-rose-700 font-medium text-xs flex items-center gap-2">
+          <i class="fa-solid fa-circle-exclamation shrink-0 text-rose-600"></i>
+          <span>Mật khẩu quản trị không chính xác!</span>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">
+            <i class="fa-solid fa-key text-amber-600"></i> Mật khẩu Quản trị viên (Admin): <span class="text-rose-500">*</span>
+          </label>
+          <input type="password" id="loginAdminPassword" required placeholder="Nhập mật khẩu quản trị..."
+            class="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-medium outline-none shadow-2xs">
+          <p class="text-[11px] text-slate-500 mt-1 italic">
+            * Dành cho quản lý: xem tất cả nhân viên, thêm mới, sửa mã thẻ và cấu hình bảng lương.
+          </p>
+        </div>
+
+        <button type="submit"
+          class="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-bold rounded-lg shadow-sm transition flex items-center justify-center gap-2 text-sm">
+          <i class="fa-solid fa-unlock-keyhole"></i> Đăng Nhập Quản Trị
+        </button>
+
+       
+      </form>
+    </div>
+  </div>
+
   <!-- TOAST NOTIFICATION CONTAINER -->
   <div id="toastContainer" class="fixed bottom-14 xl:bottom-5 right-3 xl:right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
   <!-- SCRIPT (Thêm version để chống kẹt cache trình duyệt khi deploy) -->
-  <script src="app.js?v=20261119_v3"></script>
+  <script src="app.js?v=20261120_bonus7_full"></script>
 </body>
 
 </html>

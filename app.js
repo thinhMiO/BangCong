@@ -34,13 +34,26 @@ window.allYearsStore = allYearsStore;
 // Mỗi nhân viên có hồ sơ mức lương, phụ cấp và bảng chấm công riêng biệt
 // ========================================================
 let employeesList = [
-  { id: "emp_default", name: "Nguyễn Công Thịnh", dept: "工程部 (Bộ phận Kỹ thuật)" }
+  {
+    id: "emp_default",
+    name: "Nguyễn Công Thịnh",
+    dept: "工程部 (Bộ phận Kỹ thuật)",
+    cardId: "0838",
+    startDate: "21/7/2025",
+    probationEndDate: "20/9/2025",
+    annualLeaveTotal: 10
+  }
 ];
 let currentEmpId = "emp_default";
 let employeesDataStore = {};
+let currentAuthRole = null; // 'admin' | 'employee' | null
+let currentAuthEmpId = null; // empId if 'employee'
+let adminPassword = "admin123";
+
 window.employeesList = employeesList;
 window.currentEmpId = currentEmpId;
 window.employeesDataStore = employeesDataStore;
+window.currentAuthRole = currentAuthRole;
 
 function initEmployees() {
   try {
@@ -53,6 +66,37 @@ function initEmployees() {
       }
     }
   } catch (e) {}
+
+  // Đảm bảo tất cả nhân viên đều có Ngày vào xưởng, Ngày hết thử việc và Tổng ngày phép năm hợp lệ
+  employeesList.forEach(emp => {
+    if (!emp.cardId) {
+      if (emp.id === "emp_default") emp.cardId = "1028";
+      else emp.cardId = "NV" + (emp.id.replace(/\D/g, "").slice(-4) || "0001");
+    }
+    if (emp.id === "emp_default") {
+      if (!emp.startDate) emp.startDate = "21/7/2025";
+      if (!emp.probationEndDate) emp.probationEndDate = "20/9/2025";
+      if (emp.annualLeaveTotal === undefined || isNaN(emp.annualLeaveTotal) || emp.annualLeaveTotal >= 20) {
+        emp.annualLeaveTotal = 10;
+      }
+    } else {
+      if (!emp.startDate) emp.startDate = "";
+      if (!emp.probationEndDate) emp.probationEndDate = "";
+      if (emp.annualLeaveTotal === undefined || isNaN(emp.annualLeaveTotal) || emp.annualLeaveTotal >= 20) {
+        emp.annualLeaveTotal = 12;
+      }
+    }
+  });
+
+  // Dọn dẹp cache allYearsStore nếu có số liệu cũ bị lỗi 30
+  if (allYearsStore) {
+    Object.keys(allYearsStore).forEach(y => {
+      if (allYearsStore[y] && (allYearsStore[y].annualLeaveTotal >= 20 || allYearsStore[y].annualLeaveTotalManual >= 20)) {
+        delete allYearsStore[y].annualLeaveTotal;
+        delete allYearsStore[y].annualLeaveTotalManual;
+      }
+    });
+  }
 
   try {
     const savedEmpId = localStorage.getItem("app_current_emp_id");
@@ -129,15 +173,20 @@ function loadEmployeeData(empId, isInitial = false) {
   if (empNameEl) empNameEl.value = emp.name;
   const empDeptEl = document.getElementById("empDept");
   if (empDeptEl) empDeptEl.value = emp.dept || "";
+  const empCardIdEl = document.getElementById("empCardId");
+  if (empCardIdEl) empCardIdEl.value = emp.cardId || "";
+  const empStartEl = document.getElementById("empStartDate");
+  if (empStartEl) empStartEl.value = emp.startDate || "21/7/2025";
+  const empProbationEl = document.getElementById("empProbationEndDate");
+  if (empProbationEl) empProbationEl.value = emp.probationEndDate || "20/9/2025";
 
   initializeDefaultData();
   loadConfigStoreToInputs(currentMonth);
+  renderAnnualLeaveTable();
 }
 
 function saveCurrentEmployeeData() {
   if (!currentEmpId) return;
-  saveCurrentMonthInputsToConfigStore();
-  saveYearToMemoryAndStorage(currentYear);
 
   const emp = employeesList.find(e => e.id === currentEmpId);
   if (emp) {
@@ -145,7 +194,33 @@ function saveCurrentEmployeeData() {
     if (empNameEl && empNameEl.value.trim()) emp.name = empNameEl.value.trim();
     const empDeptEl = document.getElementById("empDept");
     if (empDeptEl && empDeptEl.value.trim()) emp.dept = empDeptEl.value.trim();
+    const empCardIdEl = document.getElementById("empCardId");
+    if (empCardIdEl && empCardIdEl.value.trim()) emp.cardId = empCardIdEl.value.trim();
+    const empStartEl = document.getElementById("empStartDate");
+    if (empStartEl && empStartEl.value.trim()) emp.startDate = empStartEl.value.trim();
+    const empProbationEl = document.getElementById("empProbationEndDate");
+    if (empProbationEl && empProbationEl.value.trim()) emp.probationEndDate = empProbationEl.value.trim();
+    const elLeave = document.getElementById("annualLeaveTotal");
+    if (elLeave && elLeave.value.trim() !== "" && !isNaN(parseFloat(elLeave.value))) {
+      const val = parseFloat(elLeave.value);
+      if (!allYearsStore[currentYear]) allYearsStore[currentYear] = {};
+      allYearsStore[currentYear].annualLeaveTotalManual = val;
+      allYearsStore[currentYear].annualLeaveTotal = val;
+      emp.annualLeaveTotal = val;
+    }
+    const elLeaveUsed = document.getElementById("annualLeaveUsed");
+    if (elLeaveUsed && elLeaveUsed.value.trim() !== "" && !isNaN(parseFloat(elLeaveUsed.value))) {
+      const val = parseFloat(elLeaveUsed.value);
+      const stats = getEmployeeAnnualLeaveStats(currentEmpId, currentYear);
+      const tUsed = stats ? stats.timesheetUsed : 0;
+      const priorVal = Math.max(0, Math.round((val - tUsed) * 10) / 10);
+      if (!allYearsStore[currentYear]) allYearsStore[currentYear] = {};
+      allYearsStore[currentYear].annualLeaveUsedManual = priorVal;
+    }
   }
+
+  saveCurrentMonthInputsToConfigStore();
+  saveYearToMemoryAndStorage(currentYear);
 
   if (!employeesDataStore[currentEmpId]) {
     employeesDataStore[currentEmpId] = { years: {} };
@@ -161,6 +236,10 @@ function saveCurrentEmployeeData() {
 
 function switchEmployee(targetEmpId) {
   if (!targetEmpId || targetEmpId === currentEmpId) return;
+  if (currentAuthRole === "employee" && targetEmpId !== currentAuthEmpId) {
+    showToast("⚠️ Bạn chỉ có quyền xem bảng công của chính mình!");
+    return;
+  }
   saveCurrentEmployeeData();
 
   currentEmpId = targetEmpId;
@@ -173,7 +252,7 @@ function switchEmployee(targetEmpId) {
   triggerFirebaseAutoSync();
 
   const emp = employeesList.find(e => e.id === currentEmpId);
-  if (emp) showToast(`👤 Đã chuyển sang nhân viên: ${emp.name}`);
+  if (emp) showToast(`👤 Đã chuyển sang: ${emp.name} (MST: ${emp.cardId || "---"})`);
 }
 
 function renderEmployeeSelect() {
@@ -181,27 +260,38 @@ function renderEmployeeSelect() {
     document.getElementById("selectEmployee"),
     document.getElementById("selectEmployeeSummary")
   ];
+  // Nếu đang là nhân viên đăng nhập: chỉ hiện hồ sơ của chính người đó
+  const listToRender = (currentAuthRole === "employee" && currentAuthEmpId)
+    ? employeesList.filter(e => e.id === currentAuthEmpId)
+    : employeesList;
+
   selects.forEach(sel => {
     if (!sel) return;
     sel.innerHTML = "";
-    employeesList.forEach(emp => {
+    listToRender.forEach(emp => {
       const opt = document.createElement("option");
       opt.value = emp.id;
-      opt.textContent = `${emp.name}${emp.dept ? ` (${emp.dept})` : ""}`;
+      opt.textContent = `${emp.name}${emp.cardId ? ` [${emp.cardId}]` : ""}${emp.dept ? ` (${emp.dept})` : ""}`;
       if (emp.id === currentEmpId) opt.selected = true;
       sel.appendChild(opt);
     });
   });
+
+  applyAuthUI();
 }
 
-function addNewEmployee(name, dept, baseSalary, posAllowance, senAllowance, bankAccount, bankName) {
+function addNewEmployee(name, dept, cardId, annualLeaveTotal, baseSalary, posAllowance, senAllowance, bankAccount, bankName, startDate, probationEndDate, annualLeaveUsed) {
   saveCurrentEmployeeData();
 
   const newId = "emp_" + Date.now();
   const newEmp = {
     id: newId,
     name: name.trim() || "Nhân viên mới",
-    dept: (dept || "").trim()
+    dept: (dept || "").trim(),
+    cardId: (cardId || "").trim() || ("NV" + Date.now().toString().slice(-4)),
+    annualLeaveTotal: (annualLeaveTotal !== undefined && !isNaN(annualLeaveTotal)) ? parseFloat(annualLeaveTotal) : 10,
+    startDate: (startDate !== undefined) ? startDate.trim() : "",
+    probationEndDate: (probationEndDate !== undefined) ? probationEndDate.trim() : ""
   };
   employeesList.push(newEmp);
   window.employeesList = employeesList;
@@ -226,8 +316,13 @@ function addNewEmployee(name, dept, baseSalary, posAllowance, senAllowance, bank
   const newYears = {};
   newYears[currentYear] = {
     attendance: {},
-    configs: newCfgs
+    configs: newCfgs,
+    annualLeaveTotal: newEmp.annualLeaveTotal,
+    annualLeaveTotalManual: newEmp.annualLeaveTotal
   };
+  if (annualLeaveUsed !== undefined && !isNaN(annualLeaveUsed)) {
+    newYears[currentYear].annualLeaveUsedManual = parseFloat(annualLeaveUsed);
+  }
 
   employeesDataStore[newId] = { years: newYears };
   try {
@@ -242,19 +337,49 @@ function addNewEmployee(name, dept, baseSalary, posAllowance, senAllowance, bank
   renderMultiYearSummary();
   triggerFirebaseAutoSync();
 
-  showToast(`🎉 Đã thêm và chuyển sang nhân viên mới: ${newEmp.name}!`);
+  showToast(`🎉 Đã thêm nhân viên: ${newEmp.name} (MST: ${newEmp.cardId})!`);
 }
 
-function updateCurrentEmployeeInfo(name, dept, baseSalary, posAllowance, senAllowance, bankAccount, bankName) {
+function updateCurrentEmployeeInfo(name, dept, cardId, annualLeaveTotal, baseSalary, posAllowance, senAllowance, bankAccount, bankName, startDate, probationEndDate, annualLeaveUsed) {
   const emp = employeesList.find(e => e.id === currentEmpId);
   if (!emp) return;
   if (name && name.trim()) emp.name = name.trim();
   if (dept !== undefined) emp.dept = dept.trim();
+  if (cardId !== undefined && cardId.trim()) emp.cardId = cardId.trim();
+  if (startDate !== undefined) emp.startDate = startDate.trim();
+  if (probationEndDate !== undefined) emp.probationEndDate = probationEndDate.trim();
+  if (annualLeaveTotal !== undefined && !isNaN(annualLeaveTotal)) {
+    emp.annualLeaveTotal = parseFloat(annualLeaveTotal);
+    if (!allYearsStore[currentYear]) allYearsStore[currentYear] = { attendance: {}, configs: {} };
+    allYearsStore[currentYear].annualLeaveTotal = emp.annualLeaveTotal;
+    allYearsStore[currentYear].annualLeaveTotalManual = emp.annualLeaveTotal;
+    if (employeesDataStore[currentEmpId] && employeesDataStore[currentEmpId].years) {
+      if (!employeesDataStore[currentEmpId].years[currentYear]) employeesDataStore[currentEmpId].years[currentYear] = { attendance: {}, configs: {} };
+      employeesDataStore[currentEmpId].years[currentYear].annualLeaveTotal = emp.annualLeaveTotal;
+      employeesDataStore[currentEmpId].years[currentYear].annualLeaveTotalManual = emp.annualLeaveTotal;
+    }
+  }
+  if (annualLeaveUsed !== undefined && !isNaN(annualLeaveUsed)) {
+    if (!allYearsStore[currentYear]) allYearsStore[currentYear] = { attendance: {}, configs: {} };
+    allYearsStore[currentYear].annualLeaveUsedManual = parseFloat(annualLeaveUsed);
+    if (employeesDataStore[currentEmpId] && employeesDataStore[currentEmpId].years) {
+      if (!employeesDataStore[currentEmpId].years[currentYear]) employeesDataStore[currentEmpId].years[currentYear] = { attendance: {}, configs: {} };
+      employeesDataStore[currentEmpId].years[currentYear].annualLeaveUsedManual = parseFloat(annualLeaveUsed);
+    }
+  }
 
   const empNameEl = document.getElementById("empName");
   if (empNameEl) empNameEl.value = emp.name;
   const empDeptEl = document.getElementById("empDept");
   if (empDeptEl) empDeptEl.value = emp.dept;
+  const empCardIdEl = document.getElementById("empCardId");
+  if (empCardIdEl) empCardIdEl.value = emp.cardId || "";
+  const empStartEl = document.getElementById("empStartDate");
+  if (empStartEl) empStartEl.value = emp.startDate || "21/7/2025";
+  const empProbationEl = document.getElementById("empProbationEndDate");
+  if (empProbationEl) empProbationEl.value = emp.probationEndDate || "20/9/2025";
+  const leaveTotalEl = document.getElementById("annualLeaveTotal");
+  if (leaveTotalEl) leaveTotalEl.value = emp.annualLeaveTotal || 10;
 
   if (!monthlyConfigStore[currentMonth]) {
     monthlyConfigStore[currentMonth] = getDefaultSalaryConfig(currentMonth);
@@ -346,7 +471,12 @@ function setupEmployeeEventListeners() {
   const modalTitle = document.getElementById("modalEmployeeTitle");
   const modalMode = document.getElementById("modalEmpMode");
   const modalName = document.getElementById("modalEmpName");
+  const modalCardId = document.getElementById("modalEmpCardId");
   const modalDept = document.getElementById("modalEmpDept");
+  const modalAnnualLeave = document.getElementById("modalEmpAnnualLeave");
+  const modalAnnualLeaveUsed = document.getElementById("modalEmpAnnualLeaveUsed");
+  const modalStartDate = document.getElementById("modalEmpStartDate");
+  const modalProbationEndDate = document.getElementById("modalEmpProbationEndDate");
   const modalSalaryRow = document.getElementById("modalSalaryRow");
   const modalSalary = document.getElementById("modalEmpBaseSalary");
   const modalPosAllowance = document.getElementById("modalEmpPosAllowance");
@@ -363,7 +493,12 @@ function setupEmployeeEventListeners() {
     if (mode === "add") {
       modalTitle.innerHTML = `<i class="fa-solid fa-user-plus"></i> Thêm Nhân Viên Mới`;
       modalName.value = "";
+      if (modalCardId) modalCardId.value = "";
       modalDept.value = "";
+      if (modalAnnualLeave) modalAnnualLeave.value = "10";
+      if (modalAnnualLeaveUsed) modalAnnualLeaveUsed.value = "0";
+      if (modalStartDate) modalStartDate.value = "";
+      if (modalProbationEndDate) modalProbationEndDate.value = "";
       if (modalSalary) modalSalary.value = "6300000";
       if (modalPosAllowance) modalPosAllowance.value = "0";
       if (modalSenAllowance) modalSenAllowance.value = "0";
@@ -372,8 +507,14 @@ function setupEmployeeEventListeners() {
     } else {
       modalTitle.innerHTML = `<i class="fa-solid fa-pen"></i> Chỉnh Sửa Hồ Sơ & Mức Lương Nhân Viên`;
       const emp = employeesList.find(e => e.id === currentEmpId);
+      const curLeaveStats = getEmployeeAnnualLeaveStats(currentEmpId, currentYear);
       modalName.value = emp ? emp.name : "";
+      if (modalCardId) modalCardId.value = emp ? (emp.cardId || "") : "";
       modalDept.value = emp ? (emp.dept || "") : "";
+      if (modalAnnualLeave) modalAnnualLeave.value = emp ? (emp.annualLeaveTotal !== undefined ? emp.annualLeaveTotal : 10) : 10;
+      if (modalAnnualLeaveUsed) modalAnnualLeaveUsed.value = curLeaveStats.usedInYear;
+      if (modalStartDate) modalStartDate.value = emp ? (emp.startDate || "21/7/2025") : "21/7/2025";
+      if (modalProbationEndDate) modalProbationEndDate.value = emp ? (emp.probationEndDate || "20/9/2025") : "20/9/2025";
       const cfg = monthlyConfigStore[currentMonth] || getDefaultSalaryConfig(currentMonth);
       if (modalSalary) modalSalary.value = cfg.baseSalary || 6300000;
       if (modalPosAllowance) modalPosAllowance.value = cfg.positionAllowance !== undefined ? cfg.positionAllowance : (currentEmpId === "emp_default" ? 2450000 : 0);
@@ -404,7 +545,12 @@ function setupEmployeeEventListeners() {
     form.addEventListener("submit", (e) => {
       e.preventDefault();
       const name = modalName.value.trim();
+      const cardId = modalCardId ? modalCardId.value.trim() : "";
       const dept = modalDept.value.trim();
+      const annualLeave = modalAnnualLeave ? (parseFloat(modalAnnualLeave.value) || 10) : 10;
+      const annualLeaveUsed = modalAnnualLeaveUsed && modalAnnualLeaveUsed.value !== "" ? (parseFloat(modalAnnualLeaveUsed.value) || 0) : undefined;
+      const sDate = modalStartDate ? modalStartDate.value.trim() : "";
+      const pDate = modalProbationEndDate ? modalProbationEndDate.value.trim() : "";
       if (!name) return;
       const baseSal = modalSalary ? (parseFloat(modalSalary.value) || 6300000) : 6300000;
       const posAll = modalPosAllowance ? (parseFloat(modalPosAllowance.value) || 0) : 0;
@@ -413,21 +559,36 @@ function setupEmployeeEventListeners() {
       const bankNm = modalBankName ? modalBankName.value.trim() : "";
 
       if (modalMode.value === "add") {
-        addNewEmployee(name, dept, baseSal, posAll, senAll, bankAcc, bankNm);
+        addNewEmployee(name, dept, cardId, annualLeave, baseSal, posAll, senAll, bankAcc, bankNm, sDate, pDate, annualLeaveUsed);
       } else {
-        updateCurrentEmployeeInfo(name, dept, baseSal, posAll, senAll, bankAcc, bankNm);
+        updateCurrentEmployeeInfo(name, dept, cardId, annualLeave, baseSal, posAll, senAll, bankAcc, bankNm, sDate, pDate, annualLeaveUsed);
       }
+      renderAnnualLeaveTable();
       closeModal();
     });
   }
 
-  // Tự động đồng bộ khi sửa trực tiếp họ tên / bộ phận trong bảng lương
+  // Tự động đồng bộ khi sửa trực tiếp họ tên / mã số thẻ / bộ phận / ngày phép trong bảng lương
   const elEmpName = document.getElementById("empName");
   if (elEmpName) {
     elEmpName.addEventListener("input", () => {
       const emp = employeesList.find(e => e.id === currentEmpId);
       if (emp) {
         emp.name = elEmpName.value.trim() || "Chưa đặt tên";
+        renderEmployeeSelect();
+        try {
+          localStorage.setItem("app_employees_list", JSON.stringify(employeesList));
+        } catch (e) {}
+        triggerFirebaseAutoSync();
+      }
+    });
+  }
+  const elEmpCardId = document.getElementById("empCardId");
+  if (elEmpCardId) {
+    elEmpCardId.addEventListener("input", () => {
+      const emp = employeesList.find(e => e.id === currentEmpId);
+      if (emp) {
+        emp.cardId = elEmpCardId.value.trim();
         renderEmployeeSelect();
         try {
           localStorage.setItem("app_employees_list", JSON.stringify(employeesList));
@@ -448,6 +609,413 @@ function setupEmployeeEventListeners() {
         } catch (e) {}
         triggerFirebaseAutoSync();
       }
+    });
+  }
+
+  // Sửa Ngày vào xưởng trực tiếp trên bảng
+  const elEmpStartDate = document.getElementById("empStartDate");
+  if (elEmpStartDate) {
+    elEmpStartDate.addEventListener("input", () => {
+      const emp = employeesList.find(e => e.id === currentEmpId);
+      if (emp) {
+        emp.startDate = elEmpStartDate.value.trim();
+        try {
+          localStorage.setItem("app_employees_list", JSON.stringify(employeesList));
+        } catch (e) {}
+        saveCurrentEmployeeData();
+        triggerFirebaseAutoSync();
+      }
+    });
+  }
+
+  // Sửa Ngày hết thử việc trực tiếp trên bảng
+  const elEmpProbationEndDate = document.getElementById("empProbationEndDate");
+  if (elEmpProbationEndDate) {
+    elEmpProbationEndDate.addEventListener("input", () => {
+      const emp = employeesList.find(e => e.id === currentEmpId);
+      if (emp) {
+        emp.probationEndDate = elEmpProbationEndDate.value.trim();
+        try {
+          localStorage.setItem("app_employees_list", JSON.stringify(employeesList));
+        } catch (e) {}
+        saveCurrentEmployeeData();
+        triggerFirebaseAutoSync();
+      }
+    });
+  }
+
+  // Sửa tổng ngày phép năm ngay trên bảng
+  const elLeaveTotal = document.getElementById("annualLeaveTotal");
+  if (elLeaveTotal) {
+    elLeaveTotal.addEventListener("input", () => {
+      const rawVal = elLeaveTotal.value.trim();
+      if (rawVal === "") {
+        if (!allYearsStore[currentYear]) allYearsStore[currentYear] = {};
+        delete allYearsStore[currentYear].annualLeaveTotalManual;
+        delete allYearsStore[currentYear].annualLeaveTotal;
+        if (employeesDataStore[currentEmpId] && employeesDataStore[currentEmpId].years && employeesDataStore[currentEmpId].years[currentYear]) {
+          delete employeesDataStore[currentEmpId].years[currentYear].annualLeaveTotalManual;
+          delete employeesDataStore[currentEmpId].years[currentYear].annualLeaveTotal;
+        }
+      } else {
+        const val = parseFloat(rawVal);
+        if (!isNaN(val) && val >= 0) {
+          if (!allYearsStore[currentYear]) allYearsStore[currentYear] = { attendance: {}, configs: {} };
+          allYearsStore[currentYear].annualLeaveTotalManual = val;
+          allYearsStore[currentYear].annualLeaveTotal = val;
+          const emp = employeesList.find(e => e.id === currentEmpId);
+          if (emp) emp.annualLeaveTotal = val;
+
+          if (!employeesDataStore[currentEmpId]) employeesDataStore[currentEmpId] = { years: {} };
+          if (!employeesDataStore[currentEmpId].years) employeesDataStore[currentEmpId].years = {};
+          if (!employeesDataStore[currentEmpId].years[currentYear]) {
+            employeesDataStore[currentEmpId].years[currentYear] = {};
+          }
+          employeesDataStore[currentEmpId].years[currentYear].annualLeaveTotalManual = val;
+          employeesDataStore[currentEmpId].years[currentYear].annualLeaveTotal = val;
+        }
+      }
+      renderAnnualLeaveTable();
+      saveCurrentEmployeeData();
+      triggerFirebaseAutoSync();
+    });
+  }
+
+  // Sửa số ngày phép đã nghỉ trực tiếp trên bảng (cho người cũ đã nghỉ từ các tháng trước)
+  const elLeaveUsed = document.getElementById("annualLeaveUsed");
+  if (elLeaveUsed) {
+    elLeaveUsed.addEventListener("input", () => {
+      const rawVal = elLeaveUsed.value.trim();
+      if (rawVal === "") {
+        if (!allYearsStore[currentYear]) allYearsStore[currentYear] = {};
+        delete allYearsStore[currentYear].annualLeaveUsedManual;
+        if (employeesDataStore[currentEmpId] && employeesDataStore[currentEmpId].years && employeesDataStore[currentEmpId].years[currentYear]) {
+          delete employeesDataStore[currentEmpId].years[currentYear].annualLeaveUsedManual;
+        }
+      } else {
+        const val = parseFloat(rawVal);
+        if (!isNaN(val) && val >= 0) {
+          const stats = getEmployeeAnnualLeaveStats(currentEmpId, currentYear);
+          const tUsed = stats ? stats.timesheetUsed : 0;
+          const priorVal = Math.max(0, Math.round((val - tUsed) * 10) / 10);
+
+          if (!allYearsStore[currentYear]) allYearsStore[currentYear] = { attendance: {}, configs: {} };
+          allYearsStore[currentYear].annualLeaveUsedManual = priorVal;
+          if (!employeesDataStore[currentEmpId]) employeesDataStore[currentEmpId] = { years: {} };
+          if (!employeesDataStore[currentEmpId].years) employeesDataStore[currentEmpId].years = {};
+          if (!employeesDataStore[currentEmpId].years[currentYear]) {
+            employeesDataStore[currentEmpId].years[currentYear] = {};
+          }
+          employeesDataStore[currentEmpId].years[currentYear].annualLeaveUsedManual = priorVal;
+        }
+      }
+      renderAnnualLeaveTable();
+      saveCurrentEmployeeData();
+      triggerFirebaseAutoSync();
+    });
+  }
+}
+
+// ========================================================
+// HỆ THỐNG PHÂN QUYỀN & TRA CỨU BẢNG LƯƠNG NHÂN VIÊN
+// (Nhân viên của ai xem của người đó theo Tên & Mã số thẻ)
+// ========================================================
+
+function normalizeSearchStr(s) {
+  return (s || "")
+    .toString()
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function renderLoginDatalist() {
+  const dl = document.getElementById("loginEmpDatalist");
+  if (!dl) return;
+  dl.innerHTML = "";
+  employeesList.forEach(emp => {
+    const opt = document.createElement("option");
+    opt.value = emp.name;
+    dl.appendChild(opt);
+  });
+}
+
+function showAuthModal() {
+  const modal = document.getElementById("authModal");
+  if (modal) modal.classList.remove("hidden");
+  renderLoginDatalist();
+  const empNameInput = document.getElementById("loginEmpName");
+  if (empNameInput) empNameInput.focus();
+}
+
+function hideAuthModal() {
+  const modal = document.getElementById("authModal");
+  if (modal) modal.classList.add("hidden");
+}
+
+function applyAuthUI() {
+  const badge = document.getElementById("authBadge");
+  const badgeText = document.getElementById("authBadgeText");
+  const adminControls = document.getElementById("empAdminControls");
+  const selEmp = document.getElementById("selectEmployee");
+  const selEmpSummary = document.getElementById("selectEmployeeSummary");
+  const empLockedLabel = document.getElementById("empLockedLabel");
+  const empLockedSummaryLabel = document.getElementById("empLockedSummaryLabel");
+
+  // Nhân viên và Admin ĐỀU ĐƯỢC PHÉP CHỈNH SỬA Bảng Chấm Công, Ngày Phép Tồn và Bảng Tính Tiền Lương của chính mình
+  const inputsToEnable = [
+    "empName", "empDept", "empCardId", "empStartDate", "empProbationEndDate",
+    "annualLeaveTotal", "annualLeaveUsed",
+    "baseSalary", "positionAllowance", "seniorityAllowance", "kpiCoeff", "kpiCoeffInline",
+    "allowanceGas", "allowanceHouse", "allowanceChild", "allowanceSafety",
+    "allowanceNight", "allowanceMealNight", "allowancePeriod", "allowanceOther",
+    "bonusAttendance", "bonusFullAttendance", "bonusEfficiency", "bonusQualityStar", "bonusPerformance", "bonusKPI", "bonusRecruitment", "bankAccount", "bankName", "taxExemptToggle"
+  ];
+
+  inputsToEnable.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.readOnly = false;
+      el.disabled = false;
+      el.classList.remove("cursor-not-allowed", "bg-slate-100", "select-none", "opacity-80");
+      el.removeAttribute("tabindex");
+      el.title = "";
+    }
+  });
+
+  // Mở khóa toàn bộ các ô trong Bảng Chấm Công
+  document.querySelectorAll("#tbodyAttendanceUnified input").forEach(inp => {
+    inp.readOnly = false;
+    inp.disabled = false;
+    inp.classList.remove("cursor-not-allowed", "bg-slate-50", "select-none");
+    inp.removeAttribute("tabindex");
+  });
+  document.querySelectorAll("#tbodyAttendanceUnified select").forEach(sel => {
+    sel.disabled = false;
+    sel.classList.remove("cursor-not-allowed", "bg-slate-50", "pointer-events-none");
+  });
+
+  // Mở khóa các nút thao tác chấm công nhanh
+  const quickButtons = [
+    "btnQuickFillAllDay", "btnQuickFillAllNight", "btnQuickFillRotating", "btnQuickClearAll",
+    "btnLoadSampleDec", "btnLoadSampleNov", "btnAddYearBtn", "btnAddYearQuick"
+  ];
+  quickButtons.forEach(btnId => {
+    const btn = document.getElementById(btnId);
+    if (btn) {
+      btn.disabled = false;
+      btn.classList.remove("opacity-40", "cursor-not-allowed", "pointer-events-none");
+    }
+  });
+
+  if (currentAuthRole === "admin") {
+    if (badge) {
+      badge.className = "inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-lg bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs";
+    }
+    if (badgeText) badgeText.innerHTML = `<i class="fa-solid fa-crown text-amber-600"></i> Quản Trị Viên (Toàn quyền)`;
+    if (adminControls) adminControls.style.display = "flex";
+    if (selEmp) selEmp.style.display = "inline-block";
+    if (selEmpSummary) selEmpSummary.style.display = "inline-block";
+    if (empLockedLabel) empLockedLabel.classList.add("hidden");
+    if (empLockedSummaryLabel) empLockedSummaryLabel.classList.add("hidden");
+  } else if (currentAuthRole === "employee") {
+    const emp = employeesList.find(e => e.id === currentAuthEmpId) || employeesList[0];
+    if (badge) {
+      badge.className = "inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-blue-100 text-blue-900 border border-blue-300 shadow-2xs";
+    }
+    if (badgeText) {
+      badgeText.innerHTML = `<i class="fa-solid fa-id-badge text-blue-600"></i> NV: <b>${emp.name}</b> (MST: ${emp.cardId || "---"})`;
+    }
+    // Nhân viên không được thêm/xóa nhân viên khác, và chỉ xem hồ sơ của chính mình
+    if (adminControls) adminControls.style.display = "none";
+    if (selEmp) selEmp.style.display = "none";
+    if (selEmpSummary) selEmpSummary.style.display = "none";
+    if (empLockedLabel) {
+      empLockedLabel.classList.remove("hidden");
+      empLockedLabel.innerHTML = `<i class="fa-solid fa-user-check text-blue-600 mr-1"></i>${emp.name} <span class="text-xs font-mono font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">MST: ${emp.cardId || "---"}</span>`;
+    }
+    if (empLockedSummaryLabel) {
+      empLockedSummaryLabel.classList.remove("hidden");
+      empLockedSummaryLabel.innerHTML = `<i class="fa-solid fa-user-check text-blue-600 mr-1"></i>${emp.name} <span class="text-xs font-mono font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">MST: ${emp.cardId || "---"}</span>`;
+    }
+  }
+}
+
+function setAuthRole(role, empId = null) {
+  currentAuthRole = role;
+  currentAuthEmpId = empId;
+  window.currentAuthRole = currentAuthRole;
+  window.currentAuthEmpId = currentAuthEmpId;
+
+  localStorage.setItem("app_auth_role", role);
+  if (empId) {
+    localStorage.setItem("app_auth_empid", empId);
+  } else {
+    localStorage.removeItem("app_auth_empid");
+  }
+
+  hideAuthModal();
+  applyAuthUI();
+
+  if (role === "employee" && empId) {
+    if (currentEmpId !== empId) {
+      switchEmployee(empId);
+    } else {
+      loadEmployeeData(empId);
+      renderUnifiedTable();
+      renderYearSummary();
+    }
+  } else if (role === "admin") {
+    renderEmployeeSelect();
+    renderUnifiedTable();
+    renderYearSummary();
+  }
+}
+
+function logoutAuth() {
+  localStorage.removeItem("app_auth_role");
+  localStorage.removeItem("app_auth_empid");
+  currentAuthRole = null;
+  currentAuthEmpId = null;
+  window.currentAuthRole = null;
+  window.currentAuthEmpId = null;
+
+  const loginEmpName = document.getElementById("loginEmpName");
+  const loginEmpCard = document.getElementById("loginEmpCardId");
+  const loginErr = document.getElementById("loginEmpError");
+  if (loginErr) loginErr.classList.add("hidden");
+  if (loginEmpName) loginEmpName.value = "";
+  if (loginEmpCard) loginEmpCard.value = "";
+
+  showAuthModal();
+}
+
+function checkAuthentication() {
+  // 1. Kiểm tra tham số trên URL (VD: ?card=1028 hoặc ?name=Thinh&card=1028 hoặc ?admin=0838)
+  const urlParams = new URLSearchParams(window.location.search);
+  const paramCard = urlParams.get("card");
+  const paramName = urlParams.get("name");
+  const paramAdmin = urlParams.get("admin");
+
+  if (paramAdmin && paramAdmin === adminPassword) {
+    setAuthRole("admin");
+    return;
+  }
+
+  if (paramCard) {
+    const matched = employeesList.find(e => {
+      const cardMatch = (e.cardId || "").toString().trim().toLowerCase() === paramCard.trim().toLowerCase();
+      if (!paramName) return cardMatch;
+      return cardMatch && normalizeSearchStr(e.name).includes(normalizeSearchStr(paramName));
+    });
+    if (matched) {
+      setAuthRole("employee", matched.id);
+      return;
+    }
+  }
+
+  // 2. Kiểm tra phiên đã đăng nhập trước đó trên trình duyệt này
+  const savedRole = localStorage.getItem("app_auth_role");
+  const savedEmpId = localStorage.getItem("app_auth_empid");
+
+  if (savedRole === "admin") {
+    setAuthRole("admin");
+  } else if (savedRole === "employee" && savedEmpId && employeesList.some(e => e.id === savedEmpId)) {
+    setAuthRole("employee", savedEmpId);
+  } else {
+    showAuthModal();
+  }
+}
+
+function setupAuthenticationControls() {
+  // Tabs switcher
+  const tabEmp = document.getElementById("tabLoginEmployee");
+  const tabAdmin = document.getElementById("tabLoginAdmin");
+  const formEmp = document.getElementById("formLoginEmployee");
+  const formAdmin = document.getElementById("formLoginAdmin");
+
+  if (tabEmp && tabAdmin && formEmp && formAdmin) {
+    tabEmp.addEventListener("click", () => {
+      tabEmp.className = "flex-1 py-3 font-bold border-b-2 border-blue-600 text-blue-700 bg-white flex items-center justify-center gap-1.5 transition";
+      tabAdmin.className = "flex-1 py-3 font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center justify-center gap-1.5 transition";
+      formEmp.classList.remove("hidden");
+      formAdmin.classList.add("hidden");
+    });
+
+    tabAdmin.addEventListener("click", () => {
+      tabAdmin.className = "flex-1 py-3 font-bold border-b-2 border-amber-600 text-amber-700 bg-white flex items-center justify-center gap-1.5 transition";
+      tabEmp.className = "flex-1 py-3 font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center justify-center gap-1.5 transition";
+      formAdmin.classList.remove("hidden");
+      formEmp.classList.add("hidden");
+    });
+  }
+
+  // Form đăng nhập Nhân viên theo Tên & Mã số thẻ
+  if (formEmp) {
+    formEmp.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const inputName = (document.getElementById("loginEmpName")?.value || "").trim();
+      const inputCard = (document.getElementById("loginEmpCardId")?.value || "").trim();
+      const errBox = document.getElementById("loginEmpError");
+      const errText = document.getElementById("loginEmpErrorText");
+
+      if (!inputName || !inputCard) {
+        if (errBox) {
+          errBox.classList.remove("hidden");
+          if (errText) errText.innerText = "Vui lòng nhập đầy đủ Họ tên và Mã số thẻ!";
+        }
+        return;
+      }
+
+      const normInputName = normalizeSearchStr(inputName);
+      const normInputCard = inputCard.toLowerCase();
+
+      // Kiểm tra trong danh sách nhân viên
+      const matched = employeesList.find(emp => {
+        const empNormName = normalizeSearchStr(emp.name);
+        const empNormCard = (emp.cardId || "").toString().trim().toLowerCase();
+        const isNameMatch = empNormName === normInputName || empNormName.includes(normInputName) || normInputName.includes(empNormName);
+        const isCardMatch = empNormCard === normInputCard;
+        return isNameMatch && isCardMatch;
+      });
+
+      if (matched) {
+        if (errBox) errBox.classList.add("hidden");
+        setAuthRole("employee", matched.id);
+        showToast(`Xin chào ${matched.name}! Chúc bạn làm việc hiệu quả.`);
+      } else {
+        if (errBox) {
+          errBox.classList.remove("hidden");
+          if (errText) errText.innerText = "Họ tên hoặc Mã số thẻ không đúng. Vui lòng kiểm tra lại!";
+        }
+      }
+    });
+  }
+
+  // Form đăng nhập Quản lý (Admin)
+  if (formAdmin) {
+    formAdmin.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const inputPass = (document.getElementById("loginAdminPassword")?.value || "").trim();
+      const errBox = document.getElementById("loginAdminError");
+
+      if (inputPass === adminPassword) {
+        if (errBox) errBox.classList.add("hidden");
+        setAuthRole("admin");
+        showToast("👑 Đã đăng nhập Quản Trị Viên thành công!");
+      } else {
+        if (errBox) errBox.classList.remove("hidden");
+      }
+    });
+  }
+
+  // Nút đăng xuất / Đổi tài khoản
+  const btnLogout = document.getElementById("btnAuthLogout");
+  if (btnLogout) {
+    btnLogout.addEventListener("click", () => {
+      logoutAuth();
     });
   }
 }
@@ -549,13 +1117,22 @@ function saveYearToMemoryAndStorage(year) {
   allYearsStore[year].attendance = JSON.parse(JSON.stringify(monthlyStore));
   allYearsStore[year].configs = JSON.parse(JSON.stringify(monthlyConfigStore));
 
-  // Sync vào kho của nhân viên hiện tại
+  // Sync vào kho của nhân viên hiện tại, bảo toàn dữ liệu phép năm đã sửa tay
   if (currentEmpId && employeesDataStore[currentEmpId]) {
     if (!employeesDataStore[currentEmpId].years) employeesDataStore[currentEmpId].years = {};
-    employeesDataStore[currentEmpId].years[year] = {
-      attendance: JSON.parse(JSON.stringify(monthlyStore)),
-      configs: JSON.parse(JSON.stringify(monthlyConfigStore))
-    };
+    if (!employeesDataStore[currentEmpId].years[year]) employeesDataStore[currentEmpId].years[year] = {};
+    employeesDataStore[currentEmpId].years[year].attendance = JSON.parse(JSON.stringify(monthlyStore));
+    employeesDataStore[currentEmpId].years[year].configs = JSON.parse(JSON.stringify(monthlyConfigStore));
+    
+    if (allYearsStore[year].annualLeaveTotalManual !== undefined) {
+      employeesDataStore[currentEmpId].years[year].annualLeaveTotalManual = allYearsStore[year].annualLeaveTotalManual;
+    }
+    if (allYearsStore[year].annualLeaveUsedManual !== undefined) {
+      employeesDataStore[currentEmpId].years[year].annualLeaveUsedManual = allYearsStore[year].annualLeaveUsedManual;
+    }
+    if (allYearsStore[year].annualLeaveTotal !== undefined) {
+      employeesDataStore[currentEmpId].years[year].annualLeaveTotal = allYearsStore[year].annualLeaveTotal;
+    }
     try {
       localStorage.setItem("emp_data_" + currentEmpId, JSON.stringify(employeesDataStore[currentEmpId]));
     } catch (e) {}
@@ -616,8 +1193,13 @@ function getDefaultSalaryConfig(m) {
       isManualNight: false,
       allowancePeriod: 0,
       allowanceOther: 0,
-      bonusAttendance: 600000,
+            bonusAttendance: 600000,
+      bonusFullAttendance: 0,
+      bonusEfficiency: 0,
+      bonusQualityStar: 0,
+      bonusPerformance: 0,
       bonusKPI: 3050000,
+      bonusRecruitment: 0,
       isTaxExempt: 1,
       bankAccount: "",
       bankName: ""
@@ -637,8 +1219,13 @@ function getDefaultSalaryConfig(m) {
     isManualNight: false,
     allowancePeriod: 0,
     allowanceOther: 0,
-    bonusAttendance: 600000,
-    bonusKPI: 3050000,
+          bonusAttendance: 600000,
+      bonusFullAttendance: 0,
+      bonusEfficiency: 0,
+      bonusQualityStar: 0,
+      bonusPerformance: 0,
+      bonusKPI: 3050000,
+      bonusRecruitment: 0,
     isTaxExempt: 1,
     bankAccount: "STK: 102884878810",
     bankName: "VietinBank"
@@ -682,8 +1269,13 @@ function saveCurrentMonthInputsToConfigStore() {
     lastNightShifts: oldCfg.lastNightShifts,
     allowancePeriod: getNum("allowancePeriod", oldCfg.allowancePeriod !== undefined ? oldCfg.allowancePeriod : 0),
     allowanceOther: getNum("allowanceOther", oldCfg.allowanceOther !== undefined ? oldCfg.allowanceOther : 0),
-    bonusAttendance: getNum("bonusAttendance", oldCfg.bonusAttendance !== undefined ? oldCfg.bonusAttendance : 600000),
+        bonusAttendance: getNum("bonusAttendance", oldCfg.bonusAttendance !== undefined ? oldCfg.bonusAttendance : 600000),
+    bonusFullAttendance: getNum("bonusFullAttendance", oldCfg.bonusFullAttendance !== undefined ? oldCfg.bonusFullAttendance : 0),
+    bonusEfficiency: getNum("bonusEfficiency", oldCfg.bonusEfficiency !== undefined ? oldCfg.bonusEfficiency : 0),
+    bonusQualityStar: getNum("bonusQualityStar", oldCfg.bonusQualityStar !== undefined ? oldCfg.bonusQualityStar : 0),
+    bonusPerformance: getNum("bonusPerformance", oldCfg.bonusPerformance !== undefined ? oldCfg.bonusPerformance : 0),
     bonusKPI: getNum("bonusKPI", oldCfg.bonusKPI !== undefined ? oldCfg.bonusKPI : 3050000),
+    bonusRecruitment: getNum("bonusRecruitment", oldCfg.bonusRecruitment !== undefined ? oldCfg.bonusRecruitment : 0),
     isTaxExempt: (document.getElementById("taxExemptToggle") && document.getElementById("taxExemptToggle").checked !== undefined) 
       ? (document.getElementById("taxExemptToggle").checked ? 1 : 0) 
       : (oldCfg.isTaxExempt !== undefined ? oldCfg.isTaxExempt : 1),
@@ -752,8 +1344,13 @@ function loadConfigStoreToInputs(m) {
   setVal("allowanceMealNight", mealVal);
   setVal("allowancePeriod", cfg.allowancePeriod);
   setVal("allowanceOther", cfg.allowanceOther);
-  setVal("bonusAttendance", cfg.bonusAttendance);
+    setVal("bonusAttendance", cfg.bonusAttendance);
+  setVal("bonusFullAttendance", cfg.bonusFullAttendance !== undefined ? cfg.bonusFullAttendance : 0);
+  setVal("bonusEfficiency", cfg.bonusEfficiency !== undefined ? cfg.bonusEfficiency : 0);
+  setVal("bonusQualityStar", cfg.bonusQualityStar !== undefined ? cfg.bonusQualityStar : 0);
+  setVal("bonusPerformance", cfg.bonusPerformance !== undefined ? cfg.bonusPerformance : 0);
   setVal("bonusKPI", cfg.bonusKPI);
+  setVal("bonusRecruitment", cfg.bonusRecruitment !== undefined ? cfg.bonusRecruitment : 0);
   setVal("kpiCoeff", cfg.kpiCoeff);
   setVal("kpiCoeffInline", cfg.kpiCoeff);
   setVal("bankAccount", cfg.bankAccount);
@@ -1065,8 +1662,13 @@ function initializeDefaultData() {
           isManualNight: p.is_manual_night !== undefined ? Boolean(p.is_manual_night) : Boolean(p.isManualNight),
           allowancePeriod: p.allowance_period !== undefined ? p.allowance_period : (p.allowancePeriod || 0),
           allowanceOther: p.allowance_other !== undefined ? p.allowance_other : (p.allowanceOther || 0),
-          bonusAttendance: p.bonus_attendance !== undefined ? p.bonus_attendance : (p.bonusAttendance || 600000),
+                    bonusAttendance: p.bonus_attendance !== undefined ? p.bonus_attendance : (p.bonusAttendance || 600000),
+          bonusFullAttendance: p.bonus_full_attendance !== undefined ? p.bonus_full_attendance : (p.bonusFullAttendance || 0),
+          bonusEfficiency: p.bonus_efficiency !== undefined ? p.bonus_efficiency : (p.bonusEfficiency || 0),
+          bonusQualityStar: p.bonus_quality_star !== undefined ? p.bonus_quality_star : (p.bonusQualityStar || 0),
+          bonusPerformance: p.bonus_performance !== undefined ? p.bonus_performance : (p.bonusPerformance || 0),
           bonusKPI: p.bonus_kpi !== undefined ? p.bonus_kpi : (p.bonusKPI || 3050000),
+          bonusRecruitment: p.bonus_recruitment !== undefined ? p.bonus_recruitment : (p.bonusRecruitment || 0),
           isTaxExempt: p.is_tax_exempt !== undefined ? p.is_tax_exempt : (p.isTaxExempt !== undefined ? p.isTaxExempt : 1),
           bankAccount: p.bank_account || p.bankAccount || "STK: 102884878810",
           bankName: p.bank_name || p.bankName || "VietinBank"
@@ -1150,9 +1752,259 @@ function initializeDefaultData() {
 }
 
 // ========================================================
+// QUẢN LÝ PHÉP TỒN NĂM (年假管理)
+// Quy tắc chuẩn:
+// 1. Chỉ được cộng 1 phép / 1 tháng (1 năm tối đa 12 ngày phép cơ bản)
+// 2. Cứ đến ngày vào xưởng hàng tháng sẽ tích lũy 1 ngày phép
+// 3. Phép tồn (Còn lại) = Tổng ngày phép - Số ngày nghỉ phép
+// 4. Phép tồn còn dư của năm trước tự động cộng dồn sang năm sau
+// ========================================================
+
+function getBaseLeaveForYear(emp, targetYear) {
+  if (!emp || !emp.startDate) return 12;
+  const parts = emp.startDate.toString().split(/[\/\-\.]/);
+  if (parts.length < 3) return 12;
+  const startDay = parseInt(parts[0]) || 1;
+  const startMonth = parseInt(parts[1]) || 1;
+  const startYear = parseInt(parts[2]) || targetYear;
+
+  // Chưa vào xưởng: 0 ngày phép
+  if (targetYear < startYear) return 0;
+
+  // Năm vào xưởng:
+  if (targetYear === startYear) {
+    if (emp.id === "emp_default" && startYear === 2025) {
+      return 10; // Hồ sơ mẫu Nguyễn Công Thịnh năm 2025: 10 ngày
+    }
+    // 1 tháng làm việc = 1 phép từ tháng vào xưởng đến tháng 12
+    return Math.max(1, 12 - startMonth + 1);
+  }
+
+  // Các năm sau: 1 năm 12 tháng = 12 ngày phép (chỉ được cộng 1 phép 1 tháng)
+  // Thâm niên: Cứ 5 năm làm việc tính từ ngày vào xưởng được +1 ngày phép
+  const seniorityBonus = Math.floor(Math.max(0, targetYear - startYear) / 5);
+  return 12 + seniorityBonus;
+}
+
+function getEmployeeAnnualLeaveStats(empId = currentEmpId, targetYear = currentYear) {
+  const emp = employeesList.find(e => e.id === empId) || {};
+  const empYears = (employeesDataStore[empId] && employeesDataStore[empId].years) || (empId === currentEmpId ? allYearsStore : {}) || {};
+
+  // Xác định năm vào xưởng
+  let startY = targetYear;
+  if (emp.startDate) {
+    const parts = emp.startDate.toString().split(/[\/\-\.]/);
+    if (parts.length >= 3) {
+      const parsedY = parseInt(parts[2]);
+      if (parsedY && parsedY >= 2000 && parsedY <= targetYear) {
+        startY = parsedY;
+      }
+    }
+  }
+
+  function getStatsOfYear(y, carryIn) {
+    // Luôn ưu tiên allYearsStore nếu đang xem nhân viên và năm hiện tại
+    let yData = {};
+    if (empId === currentEmpId && y === currentYear && allYearsStore[y]) {
+      yData = allYearsStore[y];
+    } else if (empYears[y]) {
+      yData = empYears[y];
+    } else if (empId === currentEmpId && allYearsStore[y]) {
+      yData = allYearsStore[y];
+    }
+
+    // 1. Phép cơ bản năm nay (1 tháng = 1 phép, tối đa 12 ngày/năm + thâm niên)
+    const baseTotal = getBaseLeaveForYear(emp, y);
+
+    // 2. TỔNG NGÀY PHÉP:
+    // NẾU ADMIN ĐÃ SỬA TAY TỔNG NGÀY PHÉP (VD: 10 NGÀY) HOẶC THIẾT LẬP annualLeaveTotal:
+    // DÙNG CHÍNH XÁC SỐ ĐÓ, TUYỆT ĐỐI KHÔNG CỘNG THÊM PHÉP TỒN carryIn LÊN TRÊN SỐ ADMIN GÕ!
+    let total = baseTotal + carryIn;
+    let isManualTotal = false;
+
+    if (yData && yData.annualLeaveTotalManual !== undefined && !isNaN(yData.annualLeaveTotalManual) && yData.annualLeaveTotalManual !== null) {
+      total = parseFloat(yData.annualLeaveTotalManual);
+      isManualTotal = true;
+    } else if (yData && yData.annualLeaveTotal !== undefined && !isNaN(yData.annualLeaveTotal) && yData.annualLeaveTotal !== null) {
+      total = parseFloat(yData.annualLeaveTotal);
+      isManualTotal = true;
+    } else if (emp.id === "emp_default" && (y === 2025 || (emp.annualLeaveTotal === 10 && y === targetYear))) {
+      total = 10;
+      isManualTotal = true;
+    } else if (emp.annualLeaveTotal !== undefined && !isNaN(emp.annualLeaveTotal) && y === targetYear) {
+      total = parseFloat(emp.annualLeaveTotal);
+      isManualTotal = true;
+    }
+
+    // 3. SỐ NGÀY PHÉP ĐÃ NGHỈ TRONG NĂM:
+    // a) Đếm từ bảng chấm công (các chữ 'P' và '0.5P')
+    let timesheetUsed = 0;
+    let usedInMonth = 0;
+    const attendance = (empId === currentEmpId && y === currentYear) ? monthlyStore : ((yData && yData.attendance) || {});
+    for (let m = 1; m <= 12; m++) {
+      const mData = (empId === currentEmpId && y === currentYear && m === currentMonth)
+        ? (monthlyStore[currentMonth] || {})
+        : (attendance[m] || {});
+      const daysInM = getDaysInMonth(y, m);
+      let mCountP = 0;
+      for (let d = 1; d <= daysInM; d++) {
+        const dayObj = mData[d] || {};
+        const parsedAct = parseLeaveAndHours(dayObj.actual);
+        const parsedStd = parseLeaveAndHours(dayObj.std);
+        const shiftUpper = (dayObj.shift || "").toString().trim().toUpperCase();
+        const parsedShift = parseLeaveAndHours(shiftUpper);
+        const leaveCode = parsedAct.code || parsedStd.code || parsedShift.code;
+        if (leaveCode === "P") {
+          const isHalf = parsedAct.isHalf || parsedAct.isCombo || parsedShift.isHalf || parsedShift.isCombo;
+          mCountP += isHalf ? 0.5 : 1;
+        }
+      }
+      timesheetUsed += mCountP;
+      if (m === currentMonth && y === currentYear) usedInMonth = mCountP;
+    }
+
+    // b) Số ngày nghỉ trước đó do Admin sửa tay (cho các tháng trước hoặc hệ thống cũ)
+    let priorUsed = 0;
+    let isManualUsed = false;
+    if (yData && yData.annualLeaveUsedManual !== undefined && !isNaN(yData.annualLeaveUsedManual) && yData.annualLeaveUsedManual !== null) {
+      priorUsed = parseFloat(yData.annualLeaveUsedManual);
+      isManualUsed = true;
+    } else if (emp.id === "emp_default") {
+      priorUsed = 6; // Khớp 100% hồ sơ mẫu Nguyễn Công Thịnh đã nghỉ 6 ngày trước đó
+      isManualUsed = true;
+    }
+
+    // TỔNG SỐ NGÀY PHÉP ĐÃ NGHỈ = Số ngày phép đã nghỉ trước đó (sửa tay) + Số ngày chấm P trên bảng công
+    timesheetUsed = Math.round(timesheetUsed * 10) / 10;
+    priorUsed = Math.round(priorUsed * 10) / 10;
+    let usedInYear = Math.round((priorUsed + timesheetUsed) * 10) / 10;
+
+    // 4. SỐ NGÀY PHÉP CÒN LẠI = TỔNG NGÀY PHÉP - SỐ NGÀY NGHỈ PHÉP
+    total = Math.round(total * 10) / 10;
+    const remain = Math.round((total - usedInYear) * 10) / 10;
+
+    return {
+      baseTotal,
+      carryForward: isManualTotal ? 0 : carryIn,
+      total,
+      priorUsed,
+      usedInYear,
+      usedInMonth: Math.round(usedInMonth * 10) / 10,
+      timesheetUsed,
+      isManualUsed,
+      isManualTotal,
+      remain
+    };
+  }
+
+  // Chạy chuỗi cộng dồn từ startY đến targetYear
+  let carry = 0;
+  let result = null;
+  for (let y = startY; y <= targetYear; y++) {
+    result = getStatsOfYear(y, carry);
+    // Nếu năm trước còn dư phép (> 0), cộng dồn sang năm sau (chỉ khi năm sau không có cấu hình cứng)
+    carry = Math.max(0, result.remain);
+  }
+
+  return result || {
+    baseTotal: 10,
+    carryForward: 0,
+    total: 10,
+    usedInYear: 6,
+    usedInMonth: 0,
+    timesheetUsed: 0,
+    isManualUsed: true,
+    isManualTotal: true,
+    remain: 4
+  };
+}
+
+function renderAnnualLeaveTable() {
+  const stats = getEmployeeAnnualLeaveStats(currentEmpId, currentYear);
+  const emp = employeesList.find(e => e.id === currentEmpId) || {};
+
+  // 1. Cập nhật bảng phép tồn ở View 1 (Ngay trên bảng tính lương)
+  const elStartDate = document.getElementById("empStartDate");
+  const elProbationEndDate = document.getElementById("empProbationEndDate");
+  const elTotal = document.getElementById("annualLeaveTotal");
+  const elUsed = document.getElementById("annualLeaveUsed");
+  const elCarryNote = document.getElementById("annualLeaveCarryNote");
+  const elMonthNote = document.getElementById("annualLeaveMonthNote");
+  const elRemain = document.getElementById("annualLeaveRemain");
+  const elBadge = document.getElementById("annualLeaveStatusBadge");
+
+  if (elStartDate && document.activeElement !== elStartDate) {
+    elStartDate.value = emp.startDate || "21/7/2025";
+  }
+  if (elProbationEndDate && document.activeElement !== elProbationEndDate) {
+    elProbationEndDate.value = emp.probationEndDate || "20/9/2025";
+  }
+  if (elTotal && document.activeElement !== elTotal) {
+    elTotal.value = stats.total;
+  }
+  if (elUsed && document.activeElement !== elUsed) {
+    elUsed.value = stats.usedInYear;
+  }
+  if (elCarryNote) {
+    if (stats.carryForward > 0 && !stats.isManualTotal) {
+      elCarryNote.innerText = `(+${stats.carryForward} tồn từ ${currentYear - 1})`;
+      elCarryNote.classList.remove("hidden");
+    } else {
+      elCarryNote.innerText = "";
+      elCarryNote.classList.add("hidden");
+    }
+  }
+  if (elMonthNote) {
+    if (stats.priorUsed > 0 && stats.timesheetUsed > 0) {
+      elMonthNote.innerText = `(Trước đó: ${stats.priorUsed} • Chấm P: ${stats.timesheetUsed})`;
+    } else if (stats.priorUsed > 0) {
+      elMonthNote.innerText = `(Sửa tay: ${stats.priorUsed} • Chấm P: 0)`;
+    } else {
+      elMonthNote.innerText = `(Tháng ${currentMonth}: ${stats.usedInMonth} • Chấm P cả năm: ${stats.timesheetUsed})`;
+    }
+  }
+  if (elRemain) {
+    elRemain.innerText = stats.remain;
+    if (stats.remain < 0) {
+      elRemain.className = "font-mono font-bold text-rose-600 text-sm md:text-base";
+    } else {
+      elRemain.className = "font-mono font-bold text-emerald-700 text-sm md:text-base";
+    }
+  }
+  if (elBadge) {
+    if (stats.remain > 0) {
+      elBadge.className = "block text-[10px] font-semibold text-emerald-700 mt-0.5";
+      elBadge.innerText = `🌿 Còn ${stats.remain} ngày`;
+    } else if (stats.remain === 0) {
+      elBadge.className = "block text-[10px] font-semibold text-amber-700 mt-0.5";
+      elBadge.innerText = `Đã dùng hết phép`;
+    } else {
+      elBadge.className = "block text-[10px] font-bold text-rose-600 mt-0.5";
+      elBadge.innerText = `⚠️ Vượt ${Math.abs(stats.remain)} ngày`;
+    }
+  }
+
+  // 2. Cập nhật thẻ Phép Tồn Năm ở View 2 (Bảng thống kê 12 tháng)
+  const kpiRemain = document.getElementById("kpiAnnualLeaveRemain");
+  const kpiSub = document.getElementById("kpiAnnualLeaveSub");
+  if (kpiRemain) {
+    kpiRemain.innerText = `${stats.remain} ngày`;
+    kpiRemain.className = `text-xl md:text-2xl font-bold font-mono mt-1 ${stats.remain < 0 ? 'text-rose-600' : 'text-orange-950'}`;
+  }
+  if (kpiSub) {
+    let subStr = `Đã nghỉ: ${stats.usedInYear} / ${stats.total} ngày`;
+    if (stats.carryForward > 0 && !stats.isManualTotal) {
+      subStr += ` (Gồm +${stats.carryForward} tồn từ ${currentYear - 1})`;
+    }
+    kpiSub.innerText = subStr;
+  }
+}
+
+// ========================================================
 // RENDER UNIFIED ATTENDANCE TABLE WITH SHIFT PILLS
 // ========================================================
 function renderUnifiedTable() {
+  renderAnnualLeaveTable();
   const totalDays = getDaysInMonth(currentYear, currentMonth);
   document.getElementById("daysCountBadge").innerText = `${totalDays} ngày`;
 
@@ -1258,6 +2110,7 @@ function renderUnifiedTable() {
 
   recalculateMonth(countNightShifts);
   renderYearSummary();
+  applyAuthUI();
 }
 
 window.setDayShift = function(day, shiftType) {
@@ -1292,13 +2145,26 @@ function attachTableInputs() {
         // Nếu gõ mã nghỉ vào actual hoặc std thì cập nhật shift tương ứng
         if ((field === "actual" || field === "std") && LEAVE_CODES.includes(upper)) {
           monthlyStore[currentMonth][day].shift = upper;
+          const tr = e.target.closest("tr");
+          if (tr) {
+            const selectEl = tr.querySelector("select");
+            if (selectEl) selectEl.value = upper;
+          }
         }
       }
+
+      if (field === "actual") {
+        const parsed = parseLeaveAndHours(val);
+        const leaveCode = parsed.code || (LEAVE_CODES.includes(upper) ? upper : null);
+        e.target.className = `table-input font-bold ${leaveCode ? getLeaveBadgeClass(leaveCode, val) : ""}`;
+      }
+
       if (!monthlyConfigStore[currentMonth]) {
         monthlyConfigStore[currentMonth] = getDefaultSalaryConfig(currentMonth);
       }
       monthlyConfigStore[currentMonth].isManualNight = false; // Khi sửa giờ thì tự động tính lại tiền trợ cấp & ăn đêm
       recalculateMonth();
+      renderAnnualLeaveTable();
       renderYearSummary();
       triggerAutoSave();
     });
@@ -1556,10 +2422,16 @@ function calculateSalaryForMonth(monthNum, targetYear = currentYear) {
     bonusAtt = (workedDays >= stdDays - 2) ? Math.round(baseBonusAtt * (workedDays / stdDays)) : 0;
   }
 
+  const bonusFullAttendance = (cfg.bonusFullAttendance !== undefined && cfg.bonusFullAttendance !== null) ? Number(cfg.bonusFullAttendance) : 0;
+  const bonusEfficiency = (cfg.bonusEfficiency !== undefined && cfg.bonusEfficiency !== null) ? Number(cfg.bonusEfficiency) : 0;
+  const bonusQualityStar = (cfg.bonusQualityStar !== undefined && cfg.bonusQualityStar !== null) ? Number(cfg.bonusQualityStar) : 0;
+  const bonusPerformance = (cfg.bonusPerformance !== undefined && cfg.bonusPerformance !== null) ? Number(cfg.bonusPerformance) : 0;
+  const bonusRecruitment = (cfg.bonusRecruitment !== undefined && cfg.bonusRecruitment !== null) ? Number(cfg.bonusRecruitment) : 0;
+
   const baseKPI = (cfg.bonusKPI !== undefined && cfg.bonusKPI !== null) ? cfg.bonusKPI : 3050000;
   const amountKPI = Math.round(baseKPI * kpiCoeff);
-  const stdTotalBonus = baseBonusAtt + baseKPI;
-  const totalBonus = bonusAtt + amountKPI;
+  const stdTotalBonus = baseBonusAtt + bonusFullAttendance + bonusEfficiency + bonusQualityStar + bonusPerformance + baseKPI + bonusRecruitment;
+  const totalBonus = bonusAtt + bonusFullAttendance + bonusEfficiency + bonusQualityStar + bonusPerformance + amountKPI + bonusRecruitment;
 
   // 7. V. TỔNG THU NHẬP (GROSS) = I + II + III + IV
   const grossIncome = amountDay + totalOTAmount + totalAllowance + totalBonus;
@@ -1613,7 +2485,7 @@ function calculateSalaryForMonth(monthNum, targetYear = currentYear) {
     amount130, amount150, amount200, amount210, amount270, amount300, amount390,
     totalOTHours, totalOTAmount,
     gas, house, child, safety, nightSubsidy, mealNight, period, other, totalAllowance,
-    baseBonusAtt, bonusAtt, baseKPI, amountKPI, stdTotalBonus, totalBonus,
+    baseBonusAtt, bonusAtt, bonusFullAttendance, bonusEfficiency, bonusQualityStar, bonusPerformance, baseKPI, amountKPI, bonusRecruitment, stdTotalBonus, totalBonus,
     grossIncome,
     deductBHXH, deductBHYT, deductBHTN, deductKPCĐ, deductTNCN, taxableIncome, isTaxExempt, totalDeductions,
     netSalary
@@ -1717,8 +2589,23 @@ function recalculateMonth(nightShiftsCount) {
   if (document.getElementById("amountBonusAtt")) {
     document.getElementById("amountBonusAtt").innerText = formatMoney(calc.bonusAtt);
   }
+  if (document.getElementById("amountBonusFullAtt")) {
+    document.getElementById("amountBonusFullAtt").innerText = formatMoney(calc.bonusFullAttendance);
+  }
+  if (document.getElementById("amountBonusEfficiency")) {
+    document.getElementById("amountBonusEfficiency").innerText = formatMoney(calc.bonusEfficiency);
+  }
+  if (document.getElementById("amountBonusQualityStar")) {
+    document.getElementById("amountBonusQualityStar").innerText = formatMoney(calc.bonusQualityStar);
+  }
+  if (document.getElementById("amountBonusPerformance")) {
+    document.getElementById("amountBonusPerformance").innerText = formatMoney(calc.bonusPerformance);
+  }
   if (document.getElementById("amountBonusKPI")) {
     document.getElementById("amountBonusKPI").innerText = formatMoney(calc.amountKPI);
+  }
+  if (document.getElementById("amountBonusRecruitment")) {
+    document.getElementById("amountBonusRecruitment").innerText = formatMoney(calc.bonusRecruitment);
   }
   const kpiInputEl = document.getElementById("kpiCoeff");
   const kpiVal = (kpiInputEl && kpiInputEl.value !== "") ? parseVal(kpiInputEl.value) : 1;
@@ -1817,6 +2704,8 @@ function recalculateMonth(nightShiftsCount) {
   document.getElementById("fNet").innerText = `${formatMoney(calc.netSalary)} đ`;
   document.getElementById("fGross").innerText = formatMoney(calc.grossIncome);
   document.getElementById("fDeduct").innerText = formatMoney(calc.totalDeductions);
+
+  renderAnnualLeaveTable();
 }
 
 // ========================================================
@@ -1918,6 +2807,7 @@ function renderYearSummary() {
   const avgNet = workedMonthsCount > 0 ? Math.round(yearNet / workedMonthsCount) : 0;
   document.getElementById("kpiAvgNet").innerText = `Bình quân: ~${formatMoney(avgNet)} đ/tháng (${workedMonthsCount} tháng đã làm)`;
 
+  renderAnnualLeaveTable();
   renderVisualChart(monthlyNets);
   renderMultiYearSummary();
 }
@@ -2354,7 +3244,7 @@ if (btnFilterAllMonths && btnFilterWorkedMonths) {
   "baseSalary", "positionAllowance", "seniorityAllowance", "kpiCoeff",
   "allowanceGas", "allowanceHouse", "allowanceChild", "allowanceSafety",
   "allowanceNight", "allowanceMealNight", "allowancePeriod", "allowanceOther",
-  "bonusAttendance", "bonusKPI", "bankAccount", "bankName"
+  "bonusAttendance", "bonusFullAttendance", "bonusEfficiency", "bonusQualityStar", "bonusPerformance", "bonusKPI", "bonusRecruitment", "bankAccount", "bankName"
 ].forEach(id => {
   const el = document.getElementById(id);
   if (el) {
@@ -2400,13 +3290,19 @@ if (taxExemptToggle) {
 }
 
 // Top Bar Action Buttons: Áp dụng trực tiếp vào THÁNG ĐANG CHỌN (Không bị nhảy tháng)
-document.getElementById("btnLoadSampleDec").addEventListener("click", () => {
-  applyDayShiftToMonth(currentMonth);
-});
+const btnSampleDec = document.getElementById("btnLoadSampleDec");
+if (btnSampleDec) {
+  btnSampleDec.addEventListener("click", () => {
+    applyDayShiftToMonth(currentMonth);
+  });
+}
 
-document.getElementById("btnLoadSampleNov").addEventListener("click", () => {
-  applyNightShiftToMonth(currentMonth);
-});
+const btnSampleNov = document.getElementById("btnLoadSampleNov");
+if (btnSampleNov) {
+  btnSampleNov.addEventListener("click", () => {
+    applyNightShiftToMonth(currentMonth);
+  });
+}
 
 // Nút xem mẫu gốc T11 / T12 (Nếu có trong DOM)
 const btnNovOrigin = document.getElementById("btnLoadSampleNovOrigin");
@@ -2422,12 +3318,19 @@ if (btnDecOrigin) {
   });
 }
 
-document.getElementById("btnResetData").addEventListener("click", () => {
-  if (confirm("Bạn có chắc chắn muốn làm mới toàn bộ số liệu cả 12 tháng về mặc định?")) {
-    initializeDefaultData();
-    renderUnifiedTable();
-  }
-});
+const btnResetEl = document.getElementById("btnResetData");
+if (btnResetEl) {
+  btnResetEl.addEventListener("click", () => {
+    if (currentAuthRole !== "admin") {
+      showToast("⚠️ Chỉ Quản trị viên (Admin) mới có quyền làm mới số liệu!");
+      return;
+    }
+    if (confirm("Bạn có chắc chắn muốn làm mới toàn bộ số liệu cả 12 tháng về mặc định?")) {
+      initializeDefaultData();
+      renderUnifiedTable();
+    }
+  });
+}
 
 // Build Export Workbook with SheetJS
 function buildExportWorkbook() {
@@ -2446,8 +3349,9 @@ function buildExportWorkbook() {
     "Thông tin", "Giá trị", "Thông số chuẩn", "Giá trị / Đơn vị"
   ]);
 
-  const empName = document.getElementById("empName") ? document.getElementById("empName").value : "Trần Văn A";
-  const empDept = document.getElementById("empDept") ? document.getElementById("empDept").value : "Bộ phận Sản xuất";
+  const empName = document.getElementById("empName") ? document.getElementById("empName").value : "Nguyễn Công Thịnh";
+  const empCardId = document.getElementById("empCardId") ? document.getElementById("empCardId").value : "";
+  const empDept = document.getElementById("empDept") ? document.getElementById("empDept").value : "Bộ phận Kỹ thuật";
   const stdWorkDays = document.getElementById("stdWorkDays") ? document.getElementById("stdWorkDays").innerText : "26";
   const stdWorkHours = document.getElementById("stdWorkHours") ? document.getElementById("stdWorkHours").innerText : "208";
   const baseSal = parseVal(document.getElementById("baseSalary") ? document.getElementById("baseSalary").value : 6300000);
@@ -2458,11 +3362,12 @@ function buildExportWorkbook() {
   const insSal = document.getElementById("insuranceSalary") ? document.getElementById("insuranceSalary").innerText : "8.850.000";
 
   const rightRows = [
-    ["Họ và tên", empName, "Ngày công chuẩn", stdWorkDays],
-    ["Bộ phận", empDept, "Số giờ tiêu chuẩn", stdWorkHours],
-    ["Lương cơ bản (LCB)", baseSal, "Đơn giá giờ", hourly],
-    ["Phụ cấp chức vụ", posAllowance, "Hệ số KPI", kpi],
-    ["Thâm niên", senAllowance, "Lương đóng BH", insSal],
+    ["Họ và tên", empName, "Mã số thẻ", empCardId],
+    ["Bộ phận", empDept, "Ngày công chuẩn", stdWorkDays],
+    ["Lương cơ bản (LCB)", baseSal, "Số giờ tiêu chuẩn", stdWorkHours],
+    ["Phụ cấp chức vụ", posAllowance, "Đơn giá giờ", hourly],
+    ["Thâm niên", senAllowance, "Hệ số KPI", kpi],
+    ["Lương đóng BH", insSal, "Bảo mật", "Theo MST"],
     ["MỤC TÍNH LƯƠNG", "CÔNG THỨC / ĐƠN GIÁ", "SỐ GIỜ", "THÀNH TIỀN (VNĐ)"],
     ["I. LƯƠNG LÀM THỰC TẾ (100%)", document.getElementById("unitRateDay") ? document.getElementById("unitRateDay").innerText : "", document.getElementById("hoursDay") ? document.getElementById("hoursDay").innerText : "", document.getElementById("amountDay") ? document.getElementById("amountDay").innerText : ""],
     ["II. LÀM THÊM GIỜ & CA ĐÊM", "", document.getElementById("totalOTHours") ? document.getElementById("totalOTHours").innerText : "", document.getElementById("totalOTAmount") ? document.getElementById("totalOTAmount").innerText : ""],
@@ -2484,7 +3389,12 @@ function buildExportWorkbook() {
     ["8. Trợ cấp khác", "", "", parseVal(document.getElementById("allowanceOther") ? document.getElementById("allowanceOther").value : 0)],
     ["IV. CÁC KHOẢN THƯỞNG", "", document.getElementById("stdTotalBonus") ? document.getElementById("stdTotalBonus").innerText : "3.650.000", document.getElementById("totalBonus") ? document.getElementById("totalBonus").innerText : ""],
     ["1. Tiền thưởng chuyên cần", document.getElementById("attBonusStatus") ? document.getElementById("attBonusStatus").innerText : "Đủ công", parseVal(document.getElementById("bonusAttendance") ? document.getElementById("bonusAttendance").value : 600000), document.getElementById("amountBonusAtt") ? document.getElementById("amountBonusAtt").innerText : ""],
-    ["2. Tiền thưởng thành tích KPI", `Hệ số: ${kpi}`, parseVal(document.getElementById("bonusKPI") ? document.getElementById("bonusKPI").value : 3050000), document.getElementById("amountBonusKPI") ? document.getElementById("amountBonusKPI").innerText : ""],
+    ["2. Thưởng khác/ Thưởng đi làm đầy đủ", "", parseVal(document.getElementById("bonusFullAttendance") ? document.getElementById("bonusFullAttendance").value : 0), document.getElementById("amountBonusFullAtt") ? document.getElementById("amountBonusFullAtt").innerText : ""],
+    ["3. Tiền thưởng hiệu suất", "", parseVal(document.getElementById("bonusEfficiency") ? document.getElementById("bonusEfficiency").value : 0), document.getElementById("amountBonusEfficiency") ? document.getElementById("amountBonusEfficiency").innerText : ""],
+    ["4. Khen thưởng sao sáng,ngôi sao chất lượng", "", parseVal(document.getElementById("bonusQualityStar") ? document.getElementById("bonusQualityStar").value : 0), document.getElementById("amountBonusQualityStar") ? document.getElementById("amountBonusQualityStar").innerText : ""],
+    ["5. Thưởng biểu hiện công việc", "", parseVal(document.getElementById("bonusPerformance") ? document.getElementById("bonusPerformance").value : 0), document.getElementById("amountBonusPerformance") ? document.getElementById("amountBonusPerformance").innerText : ""],
+    ["6. Tiền thưởng thành tích KPI", `Hệ số: ${kpi}`, parseVal(document.getElementById("bonusKPI") ? document.getElementById("bonusKPI").value : 3050000), document.getElementById("amountBonusKPI") ? document.getElementById("amountBonusKPI").innerText : ""],
+    ["7. Thưởng tuyển dụng(giới thiệu&tự ứng tuyển)", "", parseVal(document.getElementById("bonusRecruitment") ? document.getElementById("bonusRecruitment").value : 0), document.getElementById("amountBonusRecruitment") ? document.getElementById("amountBonusRecruitment").innerText : ""],
     ["V. TỔNG THU NHẬP (I+II+III+IV)", "", "", document.getElementById("totalGrossIncome") ? document.getElementById("totalGrossIncome").innerText : ""],
     ["VI. CÁC KHOẢN GIẢM TRỪ", "Tỷ lệ", "Lương đóng BH", document.getElementById("headerDeductions") ? document.getElementById("headerDeductions").innerText : ""],
     ["1. Bảo hiểm xã hội (BHXH - 8%)", "8%", insSal, document.getElementById("deductBHXH") ? document.getElementById("deductBHXH").innerText : ""],
@@ -2737,8 +3647,13 @@ function normalizeConfig(cfg) {
     isManualNight: cfg.is_manual_night !== undefined ? Boolean(cfg.is_manual_night) : Boolean(cfg.isManualNight),
     allowancePeriod: cfg.allowance_period !== undefined ? cfg.allowance_period : (cfg.allowancePeriod !== undefined ? cfg.allowancePeriod : 0),
     allowanceOther: cfg.allowance_other !== undefined ? cfg.allowance_other : (cfg.allowanceOther !== undefined ? cfg.allowanceOther : 0),
-    bonusAttendance: cfg.bonus_attendance !== undefined ? cfg.bonus_attendance : (cfg.bonusAttendance !== undefined ? cfg.bonusAttendance : 600000),
+        bonusAttendance: cfg.bonus_attendance !== undefined ? cfg.bonus_attendance : (cfg.bonusAttendance !== undefined ? cfg.bonusAttendance : 600000),
+    bonusFullAttendance: cfg.bonus_full_attendance !== undefined ? cfg.bonus_full_attendance : (cfg.bonusFullAttendance !== undefined ? cfg.bonusFullAttendance : 0),
+    bonusEfficiency: cfg.bonus_efficiency !== undefined ? cfg.bonus_efficiency : (cfg.bonusEfficiency !== undefined ? cfg.bonusEfficiency : 0),
+    bonusQualityStar: cfg.bonus_quality_star !== undefined ? cfg.bonus_quality_star : (cfg.bonusQualityStar !== undefined ? cfg.bonusQualityStar : 0),
+    bonusPerformance: cfg.bonus_performance !== undefined ? cfg.bonus_performance : (cfg.bonusPerformance !== undefined ? cfg.bonusPerformance : 0),
     bonusKPI: cfg.bonus_kpi !== undefined ? cfg.bonus_kpi : (cfg.bonusKPI !== undefined ? cfg.bonusKPI : 3050000),
+    bonusRecruitment: cfg.bonus_recruitment !== undefined ? cfg.bonus_recruitment : (cfg.bonusRecruitment !== undefined ? cfg.bonusRecruitment : 0),
     isTaxExempt: cfg.is_tax_exempt !== undefined ? cfg.is_tax_exempt : (cfg.isTaxExempt !== undefined ? cfg.isTaxExempt : 1),
     bankAccount: cfg.bank_account || cfg.bankAccount || "STK: 102884878810",
     bankName: cfg.bank_name || cfg.bankName || "VietinBank"
@@ -2851,8 +3766,13 @@ function applyConfigToInputs(cfg) {
   setVal("allowanceMealNight", cfg.allowance_meal_night !== undefined ? cfg.allowance_meal_night : cfg.allowanceMealNight);
   setVal("allowancePeriod", cfg.allowance_period !== undefined ? cfg.allowance_period : cfg.allowancePeriod);
   setVal("allowanceOther", cfg.allowance_other !== undefined ? cfg.allowance_other : cfg.allowanceOther);
-  setVal("bonusAttendance", cfg.bonus_attendance !== undefined ? cfg.bonus_attendance : cfg.bonusAttendance);
+    setVal("bonusAttendance", cfg.bonus_attendance !== undefined ? cfg.bonus_attendance : cfg.bonusAttendance);
+  setVal("bonusFullAttendance", cfg.bonus_full_attendance !== undefined ? cfg.bonus_full_attendance : (cfg.bonusFullAttendance || 0));
+  setVal("bonusEfficiency", cfg.bonus_efficiency !== undefined ? cfg.bonus_efficiency : (cfg.bonusEfficiency || 0));
+  setVal("bonusQualityStar", cfg.bonus_quality_star !== undefined ? cfg.bonus_quality_star : (cfg.bonusQualityStar || 0));
+  setVal("bonusPerformance", cfg.bonus_performance !== undefined ? cfg.bonus_performance : (cfg.bonusPerformance || 0));
   setVal("bonusKPI", cfg.bonus_kpi !== undefined ? cfg.bonus_kpi : cfg.bonusKPI);
+  setVal("bonusRecruitment", cfg.bonus_recruitment !== undefined ? cfg.bonus_recruitment : (cfg.bonusRecruitment || 0));
   setVal("bankAccount", cfg.bank_account || cfg.bankAccount);
   setVal("bankName", cfg.bank_name || cfg.bankName);
   const taxEx = (cfg.is_tax_exempt !== undefined) ? cfg.is_tax_exempt : (cfg.isTaxExempt !== undefined ? cfg.isTaxExempt : 1);
@@ -2880,8 +3800,13 @@ function collectConfigPayload() {
     allowance_meal_night: parseVal(document.getElementById("allowanceMealNight").value),
     allowance_period: parseVal(document.getElementById("allowancePeriod").value),
     allowance_other: parseVal(document.getElementById("allowanceOther").value),
-    bonus_attendance: parseVal(document.getElementById("bonusAttendance").value),
+        bonus_attendance: parseVal(document.getElementById("bonusAttendance").value),
+    bonus_full_attendance: parseVal(document.getElementById("bonusFullAttendance") ? document.getElementById("bonusFullAttendance").value : 0),
+    bonus_efficiency: parseVal(document.getElementById("bonusEfficiency") ? document.getElementById("bonusEfficiency").value : 0),
+    bonus_quality_star: parseVal(document.getElementById("bonusQualityStar") ? document.getElementById("bonusQualityStar").value : 0),
+    bonus_performance: parseVal(document.getElementById("bonusPerformance") ? document.getElementById("bonusPerformance").value : 0),
     bonus_kpi: parseVal(document.getElementById("bonusKPI").value),
+    bonus_recruitment: parseVal(document.getElementById("bonusRecruitment") ? document.getElementById("bonusRecruitment").value : 0),
     is_tax_exempt: (document.getElementById("taxExemptToggle") && document.getElementById("taxExemptToggle").checked) ? 1 : 0,
     bank_account: document.getElementById("bankAccount").value,
     bank_name: document.getElementById("bankName").value
@@ -2997,7 +3922,10 @@ async function pushToFirebase(silent = false) {
       }
       yearsPayload[y] = {
         attendance: finalAtt,
-        configs: finalCfg
+        configs: finalCfg,
+        annualLeaveTotalManual: yData.annualLeaveTotalManual,
+        annualLeaveUsedManual: yData.annualLeaveUsedManual,
+        annualLeaveTotal: yData.annualLeaveTotal
       };
     });
 
@@ -3050,6 +3978,12 @@ async function pullFromFirebase(silent = false) {
     // 0. Đồng bộ hệ thống đa nhân viên
     if (data.employees && Array.isArray(data.employees) && data.employees.length > 0) {
       employeesList = data.employees;
+      employeesList.forEach(emp => {
+        if (!emp.cardId) {
+          if (emp.id === "emp_default") emp.cardId = "1028";
+          else emp.cardId = "NV" + (emp.id.replace(/\D/g, "").slice(-4) || "0001");
+        }
+      });
       window.employeesList = employeesList;
       try { localStorage.setItem("app_employees_list", JSON.stringify(employeesList)); } catch (e) {}
 
@@ -3062,7 +3996,9 @@ async function pullFromFirebase(silent = false) {
         });
       }
 
-      if (!employeesList.some(e => e.id === currentEmpId)) {
+      if (currentAuthRole === "employee" && currentAuthEmpId) {
+        currentEmpId = currentAuthEmpId;
+      } else if (!employeesList.some(e => e.id === currentEmpId)) {
         currentEmpId = (data.currentEmpId && employeesList.some(e => e.id === data.currentEmpId))
           ? data.currentEmpId
           : employeesList[0].id;
@@ -3090,6 +4026,15 @@ async function pullFromFirebase(silent = false) {
                 if (yNum === currentYear) monthlyStore[m] = yObj.attendance[m];
               }
             }
+          }
+          if (yObj.annualLeaveTotalManual !== undefined) {
+            allYearsStore[yNum].annualLeaveTotalManual = yObj.annualLeaveTotalManual;
+          }
+          if (yObj.annualLeaveUsedManual !== undefined) {
+            allYearsStore[yNum].annualLeaveUsedManual = yObj.annualLeaveUsedManual;
+          }
+          if (yObj.annualLeaveTotal !== undefined) {
+            allYearsStore[yNum].annualLeaveTotal = yObj.annualLeaveTotal;
           }
           if (yObj.configs) {
             for (let m = 1; m <= 12; m++) {
@@ -3166,6 +4111,12 @@ function listenFirebaseRealtime() {
           if (cloud.updatedAt && Math.abs(cloud.updatedAt - myLastPush) > 1500) {
             if (cloud.employees && Array.isArray(cloud.employees) && cloud.employees.length > 0) {
               employeesList = cloud.employees;
+              employeesList.forEach(emp => {
+                if (!emp.cardId) {
+                  if (emp.id === "emp_default") emp.cardId = "1028";
+                  else emp.cardId = "NV" + (emp.id.replace(/\D/g, "").slice(-4) || "0001");
+                }
+              });
               window.employeesList = employeesList;
               try { localStorage.setItem("app_employees_list", JSON.stringify(employeesList)); } catch (e) {}
 
@@ -3178,7 +4129,9 @@ function listenFirebaseRealtime() {
                 });
               }
 
-              if (!employeesList.some(e => e.id === currentEmpId)) {
+              if (currentAuthRole === "employee" && currentAuthEmpId) {
+                currentEmpId = currentAuthEmpId;
+              } else if (!employeesList.some(e => e.id === currentEmpId)) {
                 currentEmpId = (cloud.currentEmpId && employeesList.some(e => e.id === cloud.currentEmpId))
                   ? cloud.currentEmpId
                   : employeesList[0].id;
@@ -3205,7 +4158,16 @@ function listenFirebaseRealtime() {
                       }
                     }
                   }
-                  if (yObj.configs) {
+                  if (yObj.annualLeaveTotalManual !== undefined) {
+            allYearsStore[yNum].annualLeaveTotalManual = yObj.annualLeaveTotalManual;
+          }
+          if (yObj.annualLeaveUsedManual !== undefined) {
+            allYearsStore[yNum].annualLeaveUsedManual = yObj.annualLeaveUsedManual;
+          }
+          if (yObj.annualLeaveTotal !== undefined) {
+            allYearsStore[yNum].annualLeaveTotal = yObj.annualLeaveTotal;
+          }
+          if (yObj.configs) {
                     for (let m = 1; m <= 12; m++) {
                       if (yObj.configs[m]) {
                         const norm = normalizeConfig(yObj.configs[m]);
@@ -3361,6 +4323,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   initEmployees();
   setupEmployeeEventListeners();
   setupMobileResponsiveControls();
+  setupAuthenticationControls();
+  checkAuthentication();
   await checkBackendStatus();
   // 1. Nạp từ localStorage để hiển thị tức thì 0 giây
   await loadAllMonthsFromBackendOrStorage(currentYear);
