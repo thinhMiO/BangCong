@@ -1433,79 +1433,83 @@ function saveCurrentMonthInputsToConfigStore() {
     } catch (e) {}
   }
 
-  // Tự động kế thừa / áp dụng mức lương tăng cho các tháng tương lai (từ currentMonth + 1 đến 12)
-  // Nếu các tháng đó chưa có dữ liệu chấm công thực tế
-  const curCfg = monthlyConfigStore[currentMonth];
-  if (curCfg) {
-    for (let nextM = currentMonth + 1; nextM <= 12; nextM++) {
-      const nextAtt = monthlyStore[nextM];
-      const nextWorked = nextAtt && Object.values(nextAtt).some(d => d && (d.actual > 0 || d.shift === "night" || d.leave));
-      if (!nextWorked) {
-        if (!monthlyConfigStore[nextM]) monthlyConfigStore[nextM] = {};
-        monthlyConfigStore[nextM].baseSalary = curCfg.baseSalary;
-        monthlyConfigStore[nextM].positionAllowance = curCfg.positionAllowance;
-        monthlyConfigStore[nextM].seniorityAllowance = curCfg.seniorityAllowance;
-        monthlyConfigStore[nextM].kpiCoeff = curCfg.kpiCoeff;
-        monthlyConfigStore[nextM].allowanceGas = curCfg.allowanceGas;
-        monthlyConfigStore[nextM].allowanceHouse = curCfg.allowanceHouse;
-        monthlyConfigStore[nextM].allowanceChild = curCfg.allowanceChild;
-        monthlyConfigStore[nextM].allowanceSafety = curCfg.allowanceSafety;
-        monthlyConfigStore[nextM].allowancePeriod = curCfg.allowancePeriod;
-        monthlyConfigStore[nextM].allowanceOther = curCfg.allowanceOther;
-        monthlyConfigStore[nextM].bonusAttendance = curCfg.bonusAttendance;
-        monthlyConfigStore[nextM].bonusFullAttendance = curCfg.bonusFullAttendance;
-        monthlyConfigStore[nextM].bonusEfficiency = curCfg.bonusEfficiency;
-        monthlyConfigStore[nextM].bonusQualityStar = curCfg.bonusQualityStar;
-        monthlyConfigStore[nextM].bonusPerformance = curCfg.bonusPerformance;
-        monthlyConfigStore[nextM].bonusKPI = curCfg.bonusKPI;
-        monthlyConfigStore[nextM].bonusRecruitment = curCfg.bonusRecruitment;
-        monthlyConfigStore[nextM].bankAccount = curCfg.bankAccount;
-        monthlyConfigStore[nextM].bankName = curCfg.bankName;
-        monthlyConfigStore[nextM].isTaxExempt = curCfg.isTaxExempt;
 
-        localStorage.setItem(`cfg_${currentYear}_${nextM}`, JSON.stringify(monthlyConfigStore[nextM]));
-        if (allYearsStore[currentYear] && allYearsStore[currentYear].configs) {
-          allYearsStore[currentYear].configs[nextM] = JSON.parse(JSON.stringify(monthlyConfigStore[nextM]));
-        }
-        if (currentEmpId && employeesDataStore[currentEmpId] && employeesDataStore[currentEmpId].years && employeesDataStore[currentEmpId].years[currentYear] && employeesDataStore[currentEmpId].years[currentYear].configs) {
-          employeesDataStore[currentEmpId].years[currentYear].configs[nextM] = JSON.parse(JSON.stringify(monthlyConfigStore[nextM]));
-        }
+}
+
+function copySalaryProfile(from, to) {
+  if (!from || !to) return;
+  to.baseSalary = from.baseSalary;
+  to.positionAllowance = from.positionAllowance;
+  to.seniorityAllowance = from.seniorityAllowance;
+  to.kpiCoeff = from.kpiCoeff;
+  to.allowanceGas = from.allowanceGas;
+  to.allowanceHouse = from.allowanceHouse;
+  to.allowanceChild = from.allowanceChild;
+  to.allowanceSafety = from.allowanceSafety;
+  to.allowancePeriod = from.allowancePeriod;
+  to.allowanceOther = from.allowanceOther;
+  to.bonusAttendance = from.bonusAttendance;
+  to.bonusFullAttendance = from.bonusFullAttendance;
+  to.bonusEfficiency = from.bonusEfficiency;
+  to.bonusQualityStar = from.bonusQualityStar;
+  to.bonusPerformance = from.bonusPerformance;
+  to.bonusKPI = from.bonusKPI;
+  to.bonusRecruitment = from.bonusRecruitment;
+  to.bankAccount = from.bankAccount;
+  to.bankName = from.bankName;
+  to.isTaxExempt = from.isTaxExempt;
+}
+
+function applyCurrentMonthSalaryToFutureMonths(silent = false) {
+  saveCurrentMonthInputsToConfigStore();
+  const curCfg = monthlyConfigStore[currentMonth];
+  if (!curCfg) return;
+
+  for (let m = currentMonth + 1; m <= 12; m++) {
+    const nextAtt = monthlyStore[m];
+    const nextWorked = nextAtt && Object.values(nextAtt).some(d => d && (d.actual > 0 || d.shift === "night" || d.leave));
+    // Nếu chưa làm việc hoặc người dùng bấm nút áp dụng thủ công
+    if (!nextWorked || !silent) {
+      if (!monthlyConfigStore[m]) monthlyConfigStore[m] = {};
+      copySalaryProfile(curCfg, monthlyConfigStore[m]);
+      localStorage.setItem(`cfg_${currentYear}_${m}`, JSON.stringify(monthlyConfigStore[m]));
+      if (allYearsStore[currentYear] && allYearsStore[currentYear].configs) {
+        allYearsStore[currentYear].configs[m] = JSON.parse(JSON.stringify(monthlyConfigStore[m]));
+      }
+      if (currentEmpId && employeesDataStore[currentEmpId] && employeesDataStore[currentEmpId].years && employeesDataStore[currentEmpId].years[currentYear]) {
+        if (!employeesDataStore[currentEmpId].years[currentYear].configs) employeesDataStore[currentEmpId].years[currentYear].configs = {};
+        employeesDataStore[currentEmpId].years[currentYear].configs[m] = JSON.parse(JSON.stringify(monthlyConfigStore[m]));
       }
     }
   }
+  saveYearToMemoryAndStorage(currentYear);
+  renderYearSummary();
+  if (!silent) {
+    showToast(`⚡ Đã áp dụng mức lương Tháng ${currentMonth} cho toàn bộ các tháng từ ${currentMonth + 1} đến 12/${currentYear}!`);
+  }
 }
+window.applyCurrentMonthSalaryToFutureMonths = applyCurrentMonthSalaryToFutureMonths;
 
 function loadConfigStoreToInputs(m) {
+  const labelSalaryMonth = document.getElementById("labelCurrentMonthSalary");
+  if (labelSalaryMonth) labelSalaryMonth.innerText = m;
+
+  // 1. Nếu tháng m chưa có cấu hình: lấy từ tháng trước đó (m - 1) hoặc mặc định
   if (!monthlyConfigStore[m]) {
-    monthlyConfigStore[m] = getDefaultSalaryConfig(m);
+    if (m > 1 && monthlyConfigStore[m - 1] && monthlyConfigStore[m - 1].baseSalary > 0) {
+      monthlyConfigStore[m] = JSON.parse(JSON.stringify(monthlyConfigStore[m - 1]));
+    } else {
+      monthlyConfigStore[m] = getDefaultSalaryConfig(m);
+    }
   } else {
-    // Nếu tháng m này chưa có chấm công thực tế nào, tự động nhận mức lương tăng mới nhất từ các tháng trước (m-1, m-2...)
+    // 2. Nếu tháng m chưa có chấm công thực tế nào, tự động nhận dữ liệu lương của tháng trước đó (m - 1)
     const mData = monthlyStore[m];
     const hasWorked = mData && Object.values(mData).some(d => d && (d.actual > 0 || d.shift === "night" || d.leave));
     if (!hasWorked && m > 1) {
       for (let prevM = m - 1; prevM >= 1; prevM--) {
         const prevCfg = monthlyConfigStore[prevM];
         if (prevCfg && prevCfg.baseSalary > 0) {
-          monthlyConfigStore[m].baseSalary = prevCfg.baseSalary;
-          monthlyConfigStore[m].positionAllowance = prevCfg.positionAllowance;
-          monthlyConfigStore[m].seniorityAllowance = prevCfg.seniorityAllowance;
-          monthlyConfigStore[m].kpiCoeff = prevCfg.kpiCoeff;
-          monthlyConfigStore[m].allowanceGas = prevCfg.allowanceGas;
-          monthlyConfigStore[m].allowanceHouse = prevCfg.allowanceHouse;
-          monthlyConfigStore[m].allowanceChild = prevCfg.allowanceChild;
-          monthlyConfigStore[m].allowanceSafety = prevCfg.allowanceSafety;
-          monthlyConfigStore[m].allowancePeriod = prevCfg.allowancePeriod;
-          monthlyConfigStore[m].allowanceOther = prevCfg.allowanceOther;
-          monthlyConfigStore[m].bonusAttendance = prevCfg.bonusAttendance;
-          monthlyConfigStore[m].bonusFullAttendance = prevCfg.bonusFullAttendance;
-          monthlyConfigStore[m].bonusEfficiency = prevCfg.bonusEfficiency;
-          monthlyConfigStore[m].bonusQualityStar = prevCfg.bonusQualityStar;
-          monthlyConfigStore[m].bonusPerformance = prevCfg.bonusPerformance;
-          monthlyConfigStore[m].bonusKPI = prevCfg.bonusKPI;
-          monthlyConfigStore[m].bonusRecruitment = prevCfg.bonusRecruitment;
-          monthlyConfigStore[m].bankAccount = prevCfg.bankAccount;
-          monthlyConfigStore[m].bankName = prevCfg.bankName;
-          monthlyConfigStore[m].isTaxExempt = prevCfg.isTaxExempt;
+          copySalaryProfile(prevCfg, monthlyConfigStore[m]);
           break;
         }
       }
@@ -3168,22 +3172,25 @@ window.switchYear = async function(newYear) {
   saveYearToMemoryAndStorage(currentYear);
   flushAutoSave();
 
-  // 2. Lấy cấu hình lương mới nhất của năm cũ (ưu tiên tháng 12 hoặc tháng gần nhất đã sửa)
+  // 2. Lấy cấu hình lương mới nhất của năm cũ (ưu tiên tháng 12 của năm cũ)
   const latestSalaryCfg = getLatestSalaryConfigForEmployee(currentEmpId, currentYear, 12);
 
-  // 3. Cập nhật năm mới
+  // 3. Cập nhật năm mới và chuyển về Tháng 1 của năm mới
   const oldYear = currentYear;
   currentYear = newYear;
+  currentMonth = 1;
   addAvailableYear(newYear);
 
   const inputYear = document.getElementById("inputYear");
   if (inputYear) inputYear.value = currentYear;
+  const selectMonthEl = document.getElementById("selectMonth");
+  if (selectMonthEl) selectMonthEl.value = "1";
   const summaryLabel = document.getElementById("summaryYearLabel");
   if (summaryLabel) summaryLabel.innerText = currentYear;
   const selectYearSummary = document.getElementById("selectYearSummary");
   if (selectYearSummary) selectYearSummary.value = currentYear.toString();
 
-  // 4. Khởi tạo/nạp dữ liệu năm mới với cấu hình kế thừa từ năm cũ
+  // 4. Khởi tạo/nạp dữ liệu năm mới với cấu hình kế thừa từ tháng 12 năm cũ
   initializeDefaultData(latestSalaryCfg);
   await loadAllMonthsFromBackendOrStorage(currentYear);
   loadConfigStoreToInputs(currentMonth);
@@ -3405,6 +3412,48 @@ document.getElementById("selectMonth").addEventListener("change", (e) => {
   renderUnifiedTable();
 });
 
+// Month Navigation (Nút next / prev tháng - Đến Tháng 12 chuyển sang Tháng 1 năm mới)
+async function goToNextMonth() {
+  saveCurrentMonthInputsToConfigStore();
+  flushAutoSave();
+
+  if (currentMonth < 12) {
+    goToMonth(currentMonth + 1);
+  } else {
+    // Đang ở Tháng 12 -> Chuyển sang Tháng 1 của Năm mới (currentYear + 1)
+    const nextYear = currentYear + 1;
+    await switchYear(nextYear);
+    goToMonth(1);
+    showToast(`🎆 Đã chuyển sang Tháng 1 Năm ${nextYear}!`);
+  }
+}
+window.goToNextMonth = goToNextMonth;
+
+async function goToPrevMonth() {
+  saveCurrentMonthInputsToConfigStore();
+  flushAutoSave();
+
+  if (currentMonth > 1) {
+    goToMonth(currentMonth - 1);
+  } else {
+    // Đang ở Tháng 1 -> Chuyển lùi về Tháng 12 của Năm trước (currentYear - 1)
+    const prevYear = currentYear - 1;
+    await switchYear(prevYear);
+    goToMonth(12);
+    showToast(`📅 Đã chuyển lùi về Tháng 12 Năm ${prevYear}!`);
+  }
+}
+window.goToPrevMonth = goToPrevMonth;
+
+const btnPrevMonthMain = document.getElementById("btnPrevMonthMain");
+if (btnPrevMonthMain) {
+  btnPrevMonthMain.addEventListener("click", () => goToPrevMonth());
+}
+const btnNextMonthMain = document.getElementById("btnNextMonthMain");
+if (btnNextMonthMain) {
+  btnNextMonthMain.addEventListener("click", () => goToNextMonth());
+}
+
 // Year Navigation & Selection Listeners
 const inputYearEl = document.getElementById("inputYear");
 if (inputYearEl) {
@@ -3482,6 +3531,9 @@ if (btnFilterAllMonths && btnFilterWorkedMonths) {
         if (inlineEl) inlineEl.value = el.value;
       }
       saveCurrentMonthInputsToConfigStore();
+      if (!["allowanceNight", "allowanceMealNight"].includes(id)) {
+        applyCurrentMonthSalaryToFutureMonths(true);
+      }
       recalculateMonth();
       renderYearSummary();
       triggerAutoSave();

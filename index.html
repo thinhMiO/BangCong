@@ -349,8 +349,11 @@
           </div>
 
           <!-- THÁNG -->
-          <div class="flex items-center gap-1 bg-white/95 px-2 sm:px-3 py-1 rounded-md border border-cyan-500 shadow-xs">
+          <div class="flex items-center gap-1 bg-white/95 px-2 py-1 rounded-md border border-cyan-500 shadow-xs">
             <label for="selectMonth" class="font-bold text-slate-900 text-xs sm:text-sm">Tháng:</label>
+            <button type="button" id="btnPrevMonthMain" class="px-1.5 py-0.5 text-slate-600 hover:text-blue-700 hover:bg-slate-100 rounded text-xs transition font-bold" title="Tháng trước (Tháng 1 sẽ lùi về Tháng 12 năm trước)">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
             <select id="selectMonth"
               class="font-bold text-blue-700 bg-white border border-slate-300 rounded px-1.5 py-0.5 text-xs sm:text-sm cursor-pointer outline-none focus:ring-2 focus:ring-blue-500">
               <option value="1">Tháng 1</option>
@@ -366,6 +369,9 @@
               <option value="11" selected>Tháng 11</option>
               <option value="12">Tháng 12</option>
             </select>
+            <button type="button" id="btnNextMonthMain" class="px-1.5 py-0.5 text-slate-600 hover:text-blue-700 hover:bg-slate-100 rounded text-xs transition font-bold" title="Tháng sau (Đến Tháng 12 sẽ tự động chuyển sang Tháng 1 năm mới)">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
           </div>
 
           <!-- NĂM -->
@@ -648,6 +654,16 @@
             </table>
           </div>
 
+          <div class="flex flex-wrap items-center justify-between gap-1.5 mb-1.5 px-0.5">
+            <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <i class="fa-solid fa-file-invoice-dollar text-blue-600"></i> BẢNG TÍNH LƯƠNG & TRỢ CẤP (THÁNG <span id="labelCurrentMonthSalary">11</span>)
+            </span>
+            <button type="button" onclick="applyCurrentMonthSalaryToFutureMonths()" 
+              class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold shadow-xs flex items-center gap-1 transition cursor-pointer"
+              title="Nhấp để sao chép mức lương & phụ cấp của tháng này cho các tháng tiếp theo trong năm (không phải sửa từng tháng)">
+              <i class="fa-solid fa-angles-right"></i> Áp dụng cho các tháng sau
+            </button>
+          </div>
           <table class="w-full text-xs border-collapse border border-black shadow-sm min-w-[480px] md:min-w-full" id="tableSalaryUnified">
             <!-- Part 1: Employee info & standard params -->
             <thead>
@@ -1794,7 +1810,7 @@
   <div id="toastContainer" class="fixed bottom-14 xl:bottom-5 right-3 xl:right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
   <!-- SCRIPT (Thêm version để chống kẹt cache trình duyệt khi deploy) -->
-  <script src="app.js?v=20261120_raise_propagate"></script>
+  <script src="app.js?v=20261120_next_month"></script>
 </body>
 
 </html>
