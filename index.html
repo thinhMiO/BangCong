@@ -345,6 +345,9 @@
               <button type="button" id="btnDeleteEmp" class="px-1.5 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-300 rounded text-xs font-medium transition" title="Xóa nhân viên này">
                 <i class="fa-solid fa-trash-can"></i>
               </button>
+              <button type="button" onclick="resetAllDataFactory()" class="px-1.5 sm:px-2 py-0.5 bg-rose-600 hover:bg-rose-700 text-white rounded text-xs font-semibold shadow-xs flex items-center gap-1 transition" title="Xóa toàn bộ hệ thống (tất cả nhân viên, chấm công, phiếu lương) để bắt đầu lại từ đầu">
+                <i class="fa-solid fa-rotate-left"></i> <span class="hidden sm:inline">Reset All</span>
+              </button>
             </div>
           </div>
 
@@ -658,11 +661,18 @@
             <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
               <i class="fa-solid fa-file-invoice-dollar text-blue-600"></i> BẢNG TÍNH LƯƠNG & TRỢ CẤP (THÁNG <span id="labelCurrentMonthSalary">11</span>)
             </span>
-            <button type="button" onclick="applyCurrentMonthSalaryToFutureMonths()" 
-              class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold shadow-xs flex items-center gap-1 transition cursor-pointer"
-              title="Nhấp để sao chép mức lương & phụ cấp của tháng này cho các tháng tiếp theo trong năm (không phải sửa từng tháng)">
-              <i class="fa-solid fa-angles-right"></i> Áp dụng cho các tháng sau
-            </button>
+            <div class="flex items-center gap-1.5">
+              <button type="button" onclick="cleanupOldDataAndSyncLatest()" 
+                class="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-semibold shadow-xs flex items-center gap-1 transition cursor-pointer"
+                title="Dọn dẹp bộ nhớ đệm và dữ liệu cũ, chỉ giữ lại và đồng bộ mức lương mới nhất cho tất cả các tháng">
+                <i class="fa-solid fa-broom"></i> Dọn dẹp & Lấy lương mới nhất
+              </button>
+              <button type="button" onclick="applyCurrentMonthSalaryToFutureMonths()" 
+                class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold shadow-xs flex items-center gap-1 transition cursor-pointer"
+                title="Nhấp để sao chép mức lương & phụ cấp của tháng này cho các tháng tiếp theo trong năm (không phải sửa từng tháng)">
+                <i class="fa-solid fa-angles-right"></i> Áp dụng cho các tháng sau
+              </button>
+            </div>
           </div>
           <table class="w-full text-xs border-collapse border border-black shadow-sm min-w-[480px] md:min-w-full" id="tableSalaryUnified">
             <!-- Part 1: Employee info & standard params -->
@@ -1810,7 +1820,7 @@
   <div id="toastContainer" class="fixed bottom-14 xl:bottom-5 right-3 xl:right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
   <!-- SCRIPT (Thêm version để chống kẹt cache trình duyệt khi deploy) -->
-  <script src="app.js?v=20261121_emp_fk"></script>
+  <script src="app.js?v=20261121_factory_reset"></script>
 </body>
 
 </html>

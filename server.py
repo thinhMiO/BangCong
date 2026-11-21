@@ -326,6 +326,30 @@ def delete_employee(emp_id: str):
         conn.commit()
     return {"success": True, "message": f"Đã xóa nhân viên {emp_id}"}
 
+@app.post("/api/reset-all")
+def reset_all_database():
+    now_iso = datetime.now().isoformat()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM attendance")
+        cursor.execute("DELETE FROM salary_config")
+        cursor.execute("DELETE FROM employees")
+        cursor.execute("""
+            INSERT INTO employees (id, name, dept, card_id, start_date, probation_end_date, annual_leave_total, created_at, updated_at)
+            VALUES ('emp_default', 'Nhân viên mới', 'Bộ phận Kỹ thuật', 'NV0001', '01/01/2026', '01/03/2026', 12, ?, ?)
+        """, (now_iso, now_iso))
+        for yr in [2026, 2027]:
+            for m in range(1, 13):
+                cursor.execute("""
+                    INSERT INTO salary_config 
+                    (emp_id, year, month, base_salary, pos_allowance, sen_allowance, kpi_coeff, allowance_gas, allowance_house,
+                     allowance_night, allowance_meal_night, bonus_attendance, bonus_full_attendance, bonus_efficiency,
+                     bonus_quality_star, bonus_performance, bonus_kpi, bonus_recruitment, is_tax_exempt, bank_account, bank_name, updated_at)
+                    VALUES ('emp_default', ?, ?, 6300000, 2450000, 100000, 1.0, 500000, 500000, 0, 0, 600000, 0, 0, 0, 0, 3050000, 0, 1, '', 'VietinBank', ?)
+                """, (yr, m, now_iso))
+        conn.commit()
+    return {"success": True, "message": "Đã xóa sạch toàn bộ dữ liệu hệ thống."}
+
 @app.get("/api/attendance/{year}")
 def get_year_attendance(year: int, emp_id: str = Query("emp_default")):
     with get_db() as conn:
@@ -424,7 +448,68 @@ def get_year_config(year: int, emp_id: str = Query("emp_default")):
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM salary_config WHERE emp_id = ? AND year = ?", (emp_id, year))
         rows = cursor.fetchall()
-        return {"emp_id": emp_id, "year": year, "configs": {r["month"]: dict(r) for r in rows}}
+        configs = {r["month"]: dict(r) for r in rows}
+        
+        # Nếu năm này chưa đủ 12 tháng, lấy cấu hình mới nhất kế thừa cho các tháng còn thiếu
+        cursor.execute("SELECT * FROM salary_config WHERE emp_id = ? ORDER BY year DESC, month DESC LIMIT 1", (emp_id,))
+        latest_row = cursor.fetchone()
+        latest_dict = dict(latest_row) if latest_row else {
+            "emp_id": emp_id, "year": year, "base_salary": 6300000,
+            "pos_allowance": 2450000 if emp_id == "emp_default" else 0,
+            "sen_allowance": 100000 if emp_id == "emp_default" else 0,
+            "kpi_coeff": 1.0, "allowance_gas": 500000, "allowance_house": 500000,
+            "allowance_child": 0, "allowance_safety": 0, "allowance_night": 0, "allowance_meal_night": 0,
+            "allowance_period": 0, "allowance_other": 0, "bonus_attendance": 600000, "bonus_full_attendance": 0,
+            "bonus_efficiency": 0, "bonus_quality_star": 0, "bonus_performance": 0, "bonus_kpi": 3050000,
+            "bonus_recruitment": 0, "is_tax_exempt": 1,
+            "bank_account": "STK: 102884878810" if emp_id == "emp_default" else "",
+            "bank_name": "VietinBank" if emp_id == "emp_default" else ""
+        }
+        
+        for m in range(1, 13):
+            if m not in configs:
+                # Kế thừa cấu hình mới nhất
+                cfg_copy = dict(latest_dict)
+                cfg_copy["year"] = year
+                cfg_copy["month"] = m
+                configs[m] = cfg_copy
+                
+        return {"emp_id": emp_id, "year": year, "configs": configs}
+
+@app.post("/api/cleanup-and-sync-latest")
+def cleanup_and_sync_latest(emp_id: Optional[str] = Query("emp_default")):
+    now_iso = datetime.now().isoformat()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM salary_config WHERE emp_id = ? ORDER BY year DESC, month DESC LIMIT 1", (emp_id,))
+        latest = cursor.fetchone()
+        base_sal = latest["base_salary"] if latest else 6300000
+        pos_allowance = latest["pos_allowance"] if latest else (2450000 if emp_id == "emp_default" else 0)
+        sen_allowance = latest["sen_allowance"] if latest else (100000 if emp_id == "emp_default" else 0)
+        kpi_coeff = latest["kpi_coeff"] if latest else 1.0
+        bonus_kpi = latest["bonus_kpi"] if latest else 3050000
+        bonus_att = latest["bonus_attendance"] if latest else 600000
+        bank_acc = latest["bank_account"] if latest else ("STK: 102884878810" if emp_id == "emp_default" else "")
+        bank_name = latest["bank_name"] if latest else ("VietinBank" if emp_id == "emp_default" else "")
+
+        # Quét và đồng bộ các năm 2026, 2027 cho các tháng chưa có công thực tế
+        for yr in [2026, 2027]:
+            for m in range(1, 13):
+                cursor.execute("""
+                    SELECT count(*) FROM attendance 
+                    WHERE emp_id = ? AND year = ? AND month = ? AND (actual > 0 OR shift = 'night' OR leave_type != '')
+                """, (emp_id, yr, m))
+                has_worked = cursor.fetchone()[0] > 0
+                if not has_worked:
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO salary_config 
+                        (emp_id, year, month, base_salary, pos_allowance, sen_allowance, kpi_coeff, allowance_gas, allowance_house,
+                         allowance_night, allowance_meal_night, bonus_attendance, bonus_full_attendance, bonus_efficiency,
+                         bonus_quality_star, bonus_performance, bonus_kpi, bonus_recruitment, is_tax_exempt, bank_account, bank_name, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 500000, 500000, 0, 0, ?, 0, 0, 0, 0, ?, 0, 1, ?, ?, ?)
+                    """, (emp_id, yr, m, base_sal, pos_allowance, sen_allowance, kpi_coeff, bonus_att, bonus_kpi, bank_acc, bank_name, now_iso))
+        conn.commit()
+    return {"success": True, "emp_id": emp_id, "message": f"Đã dọn dẹp và đồng bộ mức lương mới nhất ({base_sal}) cho tất cả các tháng chưa đi làm."}
 
 @app.get("/api/config/{year}/{month}")
 def get_salary_config(year: int, month: int, emp_id: str = Query("emp_default")):

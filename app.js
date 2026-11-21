@@ -518,7 +518,66 @@ const renameCurrentEmployee = updateCurrentEmployeeInfo;
 
 function deleteCurrentEmployee() {
   if (employeesList.length <= 1) {
-    alert("Không thể xóa! Hệ thống cần giữ lại ít nhất 1 nhân viên.");
+    const currentName = employeesList[0]?.name || "này";
+    const confirmed = confirm(
+      `Đây là nhân viên duy nhất trong hệ thống ("${currentName}").\n\n` +
+      `Bạn có muốn XÓA SẠCH toàn bộ ngày chấm công và đặt lại nhân viên này về trạng thái mới hoàn toàn không?`
+    );
+    if (!confirmed) return;
+
+    const newName = prompt("Nhập tên cho nhân viên mới:", "Nhân viên mới");
+    if (!newName) return;
+    const newCard = prompt("Nhập mã số thẻ:", "NV0001") || "NV0001";
+
+    const empId = employeesList[0].id;
+    employeesList[0].name = newName.trim();
+    employeesList[0].cardId = newCard.trim();
+    employeesList[0].dept = "Bộ phận Kỹ thuật";
+
+    // Xóa sạch toàn bộ chấm công trong RAM và Storage
+    monthlyStore = {};
+    window.monthlyStore = monthlyStore;
+    allYearsStore = {};
+    window.allYearsStore = allYearsStore;
+    employeesDataStore[empId] = {
+      profile: employeesList[0],
+      years: {}
+    };
+
+    // Xóa tất cả các key attendance và config liên quan trong localStorage
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith(`att_${empId}_`) || k.startsWith(`att_`) || k.startsWith(`cfg_${empId}_`))) {
+        localStorage.removeItem(k);
+      }
+    }
+    localStorage.setItem("app_employees_list", JSON.stringify(employeesList));
+    localStorage.setItem("emp_data_" + empId, JSON.stringify(employeesDataStore[empId]));
+
+    // Gọi API xóa và đặt lại trên Backend
+    if (isBackendConnected) {
+      fetch(`${API_BASE}/api/employees/${encodeURIComponent(empId)}`, { method: "DELETE" }).then(() => {
+        fetch(`${API_BASE}/api/employees`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(employeesList[0])
+        });
+      }).catch(e => console.warn(e));
+    }
+
+    // Xóa trên Firebase
+    if (typeof FIREBASE_DB_URL !== "undefined") {
+      fetch(FIREBASE_DB_URL, { method: "DELETE" }).catch(e => console.warn(e));
+    }
+
+    initializeDefaultData();
+    loadConfigStoreToInputs(currentMonth);
+    renderEmployeeSelect();
+    renderUnifiedTable();
+    recalculateMonth();
+    renderYearSummary();
+    renderMultiYearSummary();
+    showToast(`✨ Đã làm mới nhân viên: ${newName.trim()}! Bắt đầu nhập dữ liệu mới.`);
     return;
   }
   const emp = employeesList.find(e => e.id === currentEmpId);
@@ -561,6 +620,42 @@ function deleteCurrentEmployee() {
 
   showToast(`🗑️ Đã xóa nhân viên và chuyển sang: ${employeesList[0].name}`);
 }
+
+// Xóa sạch toàn bộ hệ thống để làm lại từ đầu (Factory Reset)
+async function resetAllDataFactory() {
+  const confirmed = confirm(
+    "⚠️ CẢNH BÁO NGUY HIỂM: BẠN CÓ CHẮC CHẮN MUỐN XÓA TOÀN BỘ DỮ LIỆU?\n\n" +
+    "• Toàn bộ danh sách nhân viên sẽ bị xóa.\n" +
+    "• Toàn bộ bảng chấm công và phiếu lương của tất cả các năm sẽ bị xóa sạch.\n" +
+    "• Dữ liệu trên máy tính, Firebase Cloud và CSDL SQLite sẽ được đưa về trạng thái mới hoàn toàn.\n\n" +
+    "Hành động này KHÔNG THỂ HOÀN TÁC! Bạn có chắc muốn tiếp tục?"
+  );
+  if (!confirmed) return;
+
+  const doubleCheck = prompt("Để xác nhận xóa sạch, vui lòng gõ 'XOA' vào ô bên dưới:", "");
+  if (doubleCheck !== "XOA" && doubleCheck !== "xoa") {
+    alert("Đã hủy thao tác xóa.");
+    return;
+  }
+
+  // 1. Xóa sạch trên Firebase
+  try {
+    await fetch("https://bangcong-463ae-default-rtdb.firebaseio.com/bangcong_data.json", { method: "DELETE" });
+  } catch(e) {}
+
+  // 2. Xóa sạch trên Backend SQLite
+  try {
+    await fetch(`${API_BASE}/api/reset-all`, { method: "POST" });
+  } catch(e) {}
+
+  // 3. Xóa sạch localStorage của trình duyệt
+  localStorage.clear();
+
+  // 4. Tải lại trang để mở ra giao diện mới tinh 100%
+  alert("✅ Đã xóa toàn bộ dữ liệu thành công! Trang web sẽ tự động tải lại trạng thái ban đầu.");
+  window.location.reload();
+}
+window.resetAllDataFactory = resetAllDataFactory;
 
 function setupEmployeeEventListeners() {
   const selEmp = document.getElementById("selectEmployee");
@@ -1374,64 +1469,76 @@ function getMonthConfigForYear(year, month) {
 function getLatestSalaryConfigForEmployee(empId = currentEmpId, preferYear = currentYear, preferMonth = currentMonth) {
   if (!empId) empId = currentEmpId;
 
-  // 1. Kiểm tra chính preferMonth nếu preferYear trùng năm đang mở trong RAM
-  if (preferYear === currentYear && monthlyConfigStore && monthlyConfigStore[preferMonth]) {
-    const curCfg = monthlyConfigStore[preferMonth];
-    if (curCfg && (curCfg.baseSalary !== undefined || curCfg.base_salary !== undefined)) {
-      const norm = normalizeConfig(curCfg);
-      if (norm && norm.baseSalary > 0) return JSON.parse(JSON.stringify(norm));
-    }
-  }
-
-  // 2. Tìm ngược từ tháng 12 về tháng 1 trong monthlyConfigStore đang mở
-  if (preferYear === currentYear && monthlyConfigStore) {
-    for (let m = 12; m >= 1; m--) {
-      const cfg = monthlyConfigStore[m];
-      if (cfg && (cfg.baseSalary !== undefined || cfg.base_salary !== undefined)) {
-        const norm = normalizeConfig(cfg);
-        if (norm && norm.baseSalary > 0) return JSON.parse(JSON.stringify(norm));
-      }
-    }
-  }
-
-  // 3. Tìm trong kho allYearsStore hoặc employeesDataStore[empId].years
   const store = (employeesDataStore[empId] && employeesDataStore[empId].years)
     ? employeesDataStore[empId].years
     : allYearsStore;
 
-  if (store) {
-    const years = Object.keys(store).map(Number).filter(y => !isNaN(y));
-    let targetYears = years.filter(y => y <= preferYear).sort((a, b) => b - a);
-    if (targetYears.length === 0) targetYears = years.sort((a, b) => b - a);
+  const checkMonthWorked = (y, m) => {
+    let att = null;
+    if (y === currentYear && monthlyStore && monthlyStore[m]) att = monthlyStore[m];
+    else if (store && store[y] && store[y].attendance && store[y].attendance[m]) att = store[y].attendance[m];
+    else att = readAttStorage(y, m, empId);
 
-    for (const y of targetYears) {
-      const yData = store[y];
-      if (yData && yData.configs) {
-        for (let m = 12; m >= 1; m--) {
-          const cfg = yData.configs[m];
-          if (cfg && (cfg.baseSalary !== undefined || cfg.base_salary !== undefined)) {
-            const norm = normalizeConfig(cfg);
-            if (norm && norm.baseSalary > 0) return JSON.parse(JSON.stringify(norm));
-          }
+    return att && Object.values(att).some(d => d && (
+      (typeof d.actual === "number" && d.actual > 0) ||
+      (typeof d.actual === "string" && d.actual.trim() !== "" && !isNaN(parseFloat(d.actual)) && parseFloat(d.actual) > 0) ||
+      d.shift === "night" ||
+      ["P", "L", "NB", "N", "KL", "TD", "0.5KL", "0.5TD", "4TD"].includes(d.shift) ||
+      d.leave
+    ));
+  };
+
+  const getCfgForMonth = (y, m) => {
+    if (y === currentYear && monthlyConfigStore && monthlyConfigStore[m]) {
+      const c = normalizeConfig(monthlyConfigStore[m]);
+      if (c && c.baseSalary > 0) return c;
+    }
+    if (store && store[y] && store[y].configs && store[y].configs[m]) {
+      const c = normalizeConfig(store[y].configs[m]);
+      if (c && c.baseSalary > 0) return c;
+    }
+    const s = readCfgStorage(y, m, empId);
+    if (s) {
+      const c = normalizeConfig(s);
+      if (c && c.baseSalary > 0) return c;
+    }
+    return null;
+  };
+
+  // 1. ƯU TIÊN HÀNG ĐẦU: Tìm tháng CÓ CHẤM CÔNG THỰC TẾ (worked) gần nhất từ preferYear lùi về quá khứ
+  // Ví dụ: Tháng 12/2026 có 31 ngày công thực tế -> Nhận mức lương chuẩn 6.3tr của tháng 12/2026
+  for (let y = preferYear; y >= preferYear - 5; y--) {
+    const startM = (y === preferYear) ? preferMonth : 12;
+    for (let m = startM; m >= 1; m--) {
+      if (checkMonthWorked(y, m)) {
+        const c = getCfgForMonth(y, m);
+        if (c && c.baseSalary > 0) return JSON.parse(JSON.stringify(c));
+      }
+    }
+  }
+
+  // 2. Tìm tháng có đi làm ở bất kỳ năm nào
+  if (store) {
+    const allYears = Object.keys(store).map(Number).filter(y => !isNaN(y)).sort((a, b) => b - a);
+    for (const y of allYears) {
+      for (let m = 12; m >= 1; m--) {
+        if (checkMonthWorked(y, m)) {
+          const c = getCfgForMonth(y, m);
+          if (c && c.baseSalary > 0) return JSON.parse(JSON.stringify(c));
         }
       }
     }
   }
 
-  // 4. Tìm trong localStorage tách biệt theo từng nhân viên
+  // 3. Tìm bất kỳ cấu hình nào có mức lương chuẩn (>= 6.000.000)
   for (let y = preferYear; y >= preferYear - 5; y--) {
     for (let m = 12; m >= 1; m--) {
-      const s = readCfgStorage(y, m, empId);
-      if (s) {
-        try {
-          const norm = normalizeConfig(s);
-          if (norm && norm.baseSalary > 0) return JSON.parse(JSON.stringify(norm));
-        } catch(e) {}
-      }
+      const c = getCfgForMonth(y, m);
+      if (c && c.baseSalary >= 6000000) return JSON.parse(JSON.stringify(c));
     }
   }
 
-  // 5. Fallback nếu là nhân viên hoàn toàn mới chưa có bất kỳ cấu hình nào
+  // 4. Fallback mặc định chuẩn nhất hiện tại
   const isDefaultEmp = (empId === "emp_default");
   return {
     baseSalary: 6300000,
@@ -1469,7 +1576,9 @@ function saveCurrentMonthInputsToConfigStore() {
   const getNum = (id, fallback) => {
     const el = document.getElementById(id);
     if (!el) return fallback;
-    const v = parseVal(el.value);
+    const raw = (el.value !== undefined && el.value !== null) ? el.value.toString().trim() : "";
+    if (raw === "") return fallback;
+    const v = parseFloat(raw.replace(",", "."));
     return isNaN(v) ? fallback : v;
   };
   const getStr = (id, fallback) => {
@@ -1580,37 +1689,163 @@ function applyCurrentMonthSalaryToFutureMonths(silent = false) {
       }
     }
   }
+
+  // Áp dụng tiếp cho các tháng chưa làm việc của Năm tiếp theo (currentYear + 1)
+  const nextYear = currentYear + 1;
+  addAvailableYear(nextYear);
+  if (!allYearsStore[nextYear]) allYearsStore[nextYear] = { attendance: {}, configs: {} };
+  if (!allYearsStore[nextYear].configs) allYearsStore[nextYear].configs = {};
+  for (let m = 1; m <= 12; m++) {
+    const nextYAtt = allYearsStore[nextYear]?.attendance?.[m] || readAttStorage(nextYear, m, currentEmpId);
+    const nextYWorked = nextYAtt && Object.values(nextYAtt).some(d => d && (d.actual > 0 || d.shift === "night" || d.leave));
+    if (!nextYWorked) {
+      const targetCfg = {};
+      copySalaryProfile(curCfg, targetCfg);
+      allYearsStore[nextYear].configs[m] = targetCfg;
+      writeCfgStorage(nextYear, m, targetCfg, currentEmpId);
+      if (currentEmpId && employeesDataStore[currentEmpId]?.years?.[nextYear]?.configs) {
+        employeesDataStore[currentEmpId].years[nextYear].configs[m] = targetCfg;
+      }
+    }
+  }
+
   saveYearToMemoryAndStorage(currentYear);
+  saveYearToMemoryAndStorage(nextYear);
   renderYearSummary();
   if (!silent) {
-    showToast(`⚡ Đã áp dụng mức lương Tháng ${currentMonth} cho toàn bộ các tháng từ ${currentMonth + 1} đến 12/${currentYear}!`);
+    showToast(`⚡ Đã áp dụng mức lương Tháng ${currentMonth} cho toàn bộ các tháng tiếp theo (kể cả Năm ${nextYear})!`);
   }
 }
 window.applyCurrentMonthSalaryToFutureMonths = applyCurrentMonthSalaryToFutureMonths;
+
+// Hàm Dọn Dẹp Dữ Liệu Cũ và Đồng Bộ Mức Lương Mới Nhất Cho Tất Cả Các Tháng
+async function cleanupOldDataAndSyncLatest(silent = false) {
+  // 1. Dọn dẹp sạch các key rác / định dạng cũ trong localStorage
+  const keysToRemove = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k) continue;
+    // Xóa các key không có namespace emp_id (định dạng cũ từ bản cũ)
+    if (/^(cfg|att)_\d{4}_\d+$/.test(k)) {
+      keysToRemove.push(k);
+    }
+  }
+  keysToRemove.forEach(k => {
+    try { localStorage.removeItem(k); } catch(e) {}
+  });
+
+  // 2. Lấy cấu hình lương chuẩn mới nhất của nhân viên hiện tại
+  const latestSalary = getLatestSalaryConfigForEmployee(currentEmpId);
+
+  // 3. Quét tất cả các năm (2026, 2027 và các năm có trong danh sách)
+  const years = getAvailableYearsList();
+  if (!years.includes(2026)) years.push(2026);
+  if (!years.includes(2027)) years.push(2027);
+
+  years.forEach(yr => {
+    addAvailableYear(yr);
+    if (!allYearsStore[yr]) allYearsStore[yr] = { attendance: {}, configs: {} };
+    if (!allYearsStore[yr].configs) allYearsStore[yr].configs = {};
+    if (currentEmpId && employeesDataStore[currentEmpId] && employeesDataStore[currentEmpId].years) {
+      if (!employeesDataStore[currentEmpId].years[yr]) employeesDataStore[currentEmpId].years[yr] = { attendance: {}, configs: {} };
+      if (!employeesDataStore[currentEmpId].years[yr].configs) employeesDataStore[currentEmpId].years[yr].configs = {};
+    }
+
+    for (let m = 1; m <= 12; m++) {
+      let mAtt = null;
+      if (yr === currentYear && monthlyStore && monthlyStore[m]) mAtt = monthlyStore[m];
+      else if (allYearsStore[yr] && allYearsStore[yr].attendance) mAtt = allYearsStore[yr].attendance[m];
+      else mAtt = readAttStorage(yr, m, currentEmpId);
+
+      const hasWorked = mAtt && Object.values(mAtt).some(d => d && (
+        (typeof d.actual === "number" && d.actual > 0) ||
+        (typeof d.actual === "string" && d.actual.trim() !== "" && !isNaN(parseFloat(d.actual)) && parseFloat(d.actual) > 0) ||
+        d.shift === "night" ||
+        ["P", "L", "NB", "N", "KL", "TD", "0.5KL", "0.5TD", "4TD"].includes(d.shift) ||
+        d.leave
+      ));
+
+      // Nếu tháng chưa có chấm công thực tế: Gán 100% theo mức lương mới nhất
+      if (!hasWorked) {
+        const targetCfg = JSON.parse(JSON.stringify(latestSalary));
+        writeCfgStorage(yr, m, targetCfg, currentEmpId);
+        allYearsStore[yr].configs[m] = targetCfg;
+        if (currentEmpId && employeesDataStore[currentEmpId]?.years?.[yr]?.configs) {
+          employeesDataStore[currentEmpId].years[yr].configs[m] = targetCfg;
+        }
+        if (yr === currentYear) {
+          monthlyConfigStore[m] = targetCfg;
+        }
+      }
+    }
+    saveYearToMemoryAndStorage(yr);
+  });
+
+  // 4. Đồng bộ xuống server backend SQLite nếu có kết nối
+  if (isBackendConnected) {
+    try {
+      await fetch(`${API_BASE}/api/cleanup-and-sync-latest?emp_id=${encodeURIComponent(currentEmpId)}`, {
+        method: "POST"
+      });
+    } catch(e) {
+      console.warn("Lỗi gọi cleanup backend:", e);
+    }
+  }
+
+  // 5. Cập nhật giao diện tháng hiện tại
+  loadConfigStoreToInputs(currentMonth);
+  renderUnifiedTable();
+  recalculateMonth();
+  renderYearSummary();
+  renderMultiYearSummary();
+
+  if (!silent) {
+    showToast(`🧹 Đã dọn dẹp sạch toàn bộ dữ liệu cũ và cập nhật mức lương mới nhất (${formatMoney(latestSalary.baseSalary || 6300000)}đ & Phụ cấp ${formatMoney(latestSalary.positionAllowance || 2450000)}đ) cho tất cả các tháng!`);
+  }
+}
+window.cleanupOldDataAndSyncLatest = cleanupOldDataAndSyncLatest;
 
 function loadConfigStoreToInputs(m) {
   const labelSalaryMonth = document.getElementById("labelCurrentMonthSalary");
   if (labelSalaryMonth) labelSalaryMonth.innerText = m;
 
-  // 1. Nếu tháng m chưa có cấu hình: lấy từ tháng trước đó (m - 1) hoặc mặc định
-  if (!monthlyConfigStore[m]) {
-    if (m > 1 && monthlyConfigStore[m - 1] && monthlyConfigStore[m - 1].baseSalary > 0) {
-      monthlyConfigStore[m] = JSON.parse(JSON.stringify(monthlyConfigStore[m - 1]));
-    } else {
-      monthlyConfigStore[m] = getDefaultSalaryConfig(m);
-    }
-  } else {
-    // 2. Nếu tháng m chưa có chấm công thực tế nào, tự động nhận dữ liệu lương của tháng trước đó (m - 1)
-    const mData = monthlyStore[m];
-    const hasWorked = mData && Object.values(mData).some(d => d && (d.actual > 0 || d.shift === "night" || d.leave));
-    if (!hasWorked && m > 1) {
+  // 1. Kiểm tra xem tháng m đã có chấm công thực tế nào chưa
+  const mData = monthlyStore[m];
+  const hasWorked = mData && Object.values(mData).some(d => d && (
+    (typeof d.actual === "number" && d.actual > 0) ||
+    (typeof d.actual === "string" && d.actual.trim() !== "" && !isNaN(parseFloat(d.actual)) && parseFloat(d.actual) > 0) ||
+    d.shift === "night" ||
+    ["P", "L", "NB", "N", "KL", "TD", "0.5KL", "0.5TD", "4TD"].includes(d.shift) ||
+    d.leave
+  ));
+
+  // 2. Nếu tháng m chưa có cấu hình HOẶC chưa từng có chấm công thực tế (chưa đi làm):
+  // Tự động nhận dữ liệu lương của tháng trước đó (m - 1 hoặc Tháng 12 năm trước)
+  if (!monthlyConfigStore[m] || !hasWorked) {
+    let inherited = null;
+    if (m > 1) {
       for (let prevM = m - 1; prevM >= 1; prevM--) {
         const prevCfg = monthlyConfigStore[prevM];
         if (prevCfg && prevCfg.baseSalary > 0) {
-          copySalaryProfile(prevCfg, monthlyConfigStore[m]);
+          inherited = prevCfg;
           break;
         }
       }
+    }
+    if (!inherited) {
+      // Tháng 1 (m === 1) hoặc các tháng chưa có: Kế thừa từ Tháng 12 của năm trước (currentYear - 1)
+      inherited = getLatestSalaryConfigForEmployee(currentEmpId, currentYear - 1, 12);
+    }
+
+    if (inherited && inherited.baseSalary > 0) {
+      if (!monthlyConfigStore[m]) monthlyConfigStore[m] = {};
+      copySalaryProfile(inherited, monthlyConfigStore[m]);
+      writeCfgStorage(currentYear, m, monthlyConfigStore[m], currentEmpId);
+      if (allYearsStore[currentYear] && allYearsStore[currentYear].configs) {
+        allYearsStore[currentYear].configs[m] = JSON.parse(JSON.stringify(monthlyConfigStore[m]));
+      }
+    } else if (!monthlyConfigStore[m]) {
+      monthlyConfigStore[m] = getDefaultSalaryConfig(m);
     }
   }
   const cfg = monthlyConfigStore[m];
@@ -1630,10 +1865,10 @@ function loadConfigStoreToInputs(m) {
 
   // Tự tính theo số ca đêm thực tế của tháng
   let nShifts = 0;
-  const mData = monthlyStore[m] || {};
+  const currentMData = mData || {};
   const totalDays = getDaysInMonth(currentYear, m);
   for (let d = 1; d <= totalDays; d++) {
-    const dayData = mData[d] || {};
+    const dayData = currentMData[d] || {};
     if (dayData.shift === "night" || parseVal(dayData.ot130) > 0) nShifts++;
   }
   const autoNight = nShifts * 30000;
@@ -3268,7 +3503,9 @@ window.switchYear = async function(newYear) {
   // 3. Cập nhật năm mới và chuyển về Tháng 1 của năm mới
   const oldYear = currentYear;
   currentYear = newYear;
+  window.currentYear = currentYear;
   currentMonth = 1;
+  window.currentMonth = currentMonth;
   addAvailableYear(newYear);
 
   const inputYear = document.getElementById("inputYear");
@@ -3282,7 +3519,27 @@ window.switchYear = async function(newYear) {
 
   // 4. Khởi tạo/nạp dữ liệu năm mới với cấu hình kế thừa từ tháng 12 năm cũ
   initializeDefaultData(latestSalaryCfg);
-  await loadAllMonthsFromBackendOrStorage(currentYear);
+  await loadAllMonthsFromBackendOrStorage(currentYear, currentEmpId);
+
+  // 4b. Nếu Tháng 1 của năm mới chưa có chấm công thực tế:
+  // Đảm bảo nhận 100% cấu hình lương của Tháng 12 năm cũ (loại bỏ dữ liệu test cũ bị kẹt trong cache)
+  const m1Data = monthlyStore[1];
+  const m1Worked = m1Data && Object.values(m1Data).some(d => d && (
+    (typeof d.actual === "number" && d.actual > 0) ||
+    (typeof d.actual === "string" && d.actual.trim() !== "" && !isNaN(parseFloat(d.actual)) && parseFloat(d.actual) > 0) ||
+    d.shift === "night" ||
+    ["P", "L", "NB", "N", "KL", "TD", "0.5KL", "0.5TD", "4TD"].includes(d.shift) ||
+    d.leave
+  ));
+  if (!m1Worked && latestSalaryCfg && latestSalaryCfg.baseSalary > 0) {
+    if (!monthlyConfigStore[1]) monthlyConfigStore[1] = {};
+    copySalaryProfile(latestSalaryCfg, monthlyConfigStore[1]);
+    writeCfgStorage(currentYear, 1, monthlyConfigStore[1], currentEmpId);
+    if (allYearsStore[currentYear] && allYearsStore[currentYear].configs) {
+      allYearsStore[currentYear].configs[1] = JSON.parse(JSON.stringify(monthlyConfigStore[1]));
+    }
+  }
+
   loadConfigStoreToInputs(currentMonth);
 
   // 5. Render lại toàn bộ giao diện
@@ -3349,9 +3606,12 @@ window.goToMonth = function(m) {
   saveCurrentMonthInputsToConfigStore();
   flushAutoSave();
   currentMonth = m;
-  document.getElementById("selectMonth").value = m.toString();
+  window.currentMonth = currentMonth;
+  const selMonth = document.getElementById("selectMonth");
+  if (selMonth) selMonth.value = m.toString();
   loadConfigStoreToInputs(m);
-  document.getElementById("tabBtnUnified").click();
+  const tabBtn = document.getElementById("tabBtnUnified");
+  if (tabBtn && typeof tabBtn.click === "function") tabBtn.click();
   renderUnifiedTable();
 };
 
@@ -4713,6 +4973,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   // 1. Nạp từ CSDL / localStorage tách biệt theo nhân viên hiện tại (currentEmpId)
   await loadAllMonthsFromBackendOrStorage(currentYear, currentEmpId);
   await loadFromBackendOrStorage(currentMonth, currentYear, currentEmpId);
+  // Tự động dọn dẹp các cache rác cũ và đảm bảo lấy cấu hình lương mới nhất cho các tháng chưa đi làm
+  await cleanupOldDataAndSyncLatest(true);
   loadConfigStoreToInputs(currentMonth);
   renderUnifiedTable();
 
