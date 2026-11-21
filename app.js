@@ -55,6 +55,46 @@ window.currentEmpId = currentEmpId;
 window.employeesDataStore = employeesDataStore;
 window.currentAuthRole = currentAuthRole;
 
+// ========================================================
+// BỘ HỖ TRỢ LƯU TRỮ TÁCH BIỆT THEO TỪNG NHÂN VIÊN
+// Đảm bảo dữ liệu bảng công & phiếu lương của nhân viên nào
+// được cô lập hoàn toàn cho nhân viên đó (Khóa ngoại: empId)
+// ========================================================
+function getAttStorageKey(year, month, empId) {
+  const eId = empId || currentEmpId || "emp_default";
+  return `att_${eId}_${year}_${month}`;
+}
+function getCfgStorageKey(year, month, empId) {
+  const eId = empId || currentEmpId || "emp_default";
+  return `cfg_${eId}_${year}_${month}`;
+}
+function readAttStorage(year, month, empId) {
+  const eId = empId || currentEmpId || "emp_default";
+  let s = localStorage.getItem(`att_${eId}_${year}_${month}`);
+  if (!s && eId === "emp_default") {
+    s = localStorage.getItem(`att_${year}_${month}`);
+  }
+  if (!s) return null;
+  try { return JSON.parse(s); } catch (e) { return null; }
+}
+function readCfgStorage(year, month, empId) {
+  const eId = empId || currentEmpId || "emp_default";
+  let s = localStorage.getItem(`cfg_${eId}_${year}_${month}`);
+  if (!s && eId === "emp_default") {
+    s = localStorage.getItem(`cfg_${year}_${month}`);
+  }
+  if (!s) return null;
+  try { return JSON.parse(s); } catch (e) { return null; }
+}
+function writeAttStorage(year, month, data, empId) {
+  const eId = empId || currentEmpId || "emp_default";
+  localStorage.setItem(`att_${eId}_${year}_${month}`, JSON.stringify(data || {}));
+}
+function writeCfgStorage(year, month, data, empId) {
+  const eId = empId || currentEmpId || "emp_default";
+  localStorage.setItem(`cfg_${eId}_${year}_${month}`, JSON.stringify(data || {}));
+}
+
 function initEmployees() {
   try {
     const savedList = localStorage.getItem("app_employees_list");
@@ -234,21 +274,39 @@ function saveCurrentEmployeeData() {
   } catch (e) {}
 }
 
-function switchEmployee(targetEmpId) {
+async function switchEmployee(targetEmpId) {
   if (!targetEmpId || targetEmpId === currentEmpId) return;
   if (currentAuthRole === "employee" && targetEmpId !== currentAuthEmpId) {
     showToast("⚠️ Bạn chỉ có quyền xem bảng công của chính mình!");
     return;
   }
+  // Lưu toàn bộ dữ liệu của nhân viên vừa chuyển đi
   saveCurrentEmployeeData();
+  saveYearToMemoryAndStorage(currentYear);
+  if (typeof saveCurrentMonthToBackend === "function") {
+    await saveCurrentMonthToBackend(true);
+  }
 
   currentEmpId = targetEmpId;
+  window.currentEmpId = currentEmpId;
   localStorage.setItem("app_current_emp_id", currentEmpId);
 
+  // Nạp hồ sơ của nhân viên mới
   loadEmployeeData(currentEmpId);
+  if (typeof loadAllMonthsFromBackendOrStorage === "function") {
+    await loadAllMonthsFromBackendOrStorage(currentYear, currentEmpId);
+  }
+  if (typeof loadFromBackendOrStorage === "function") {
+    await loadFromBackendOrStorage(currentMonth, currentYear, currentEmpId);
+  }
+
   renderEmployeeSelect();
+  loadConfigStoreToInputs(currentMonth);
   renderUnifiedTable();
+  recalculateMonth();
+  renderYearSummary();
   renderMultiYearSummary();
+  renderAnnualLeaveTable();
   triggerFirebaseAutoSync();
 
   const emp = employeesList.find(e => e.id === currentEmpId);
@@ -315,6 +373,8 @@ function addNewEmployee(name, dept, cardId, annualLeaveTotal, baseSalary, posAll
   const newCfgs = {};
   for (let m = 1; m <= 12; m++) {
     newCfgs[m] = Object.assign({}, customCfg);
+    writeCfgStorage(currentYear, m, newCfgs[m], newId);
+    writeAttStorage(currentYear, m, {}, newId);
   }
 
   const newYears = {};
@@ -334,6 +394,32 @@ function addNewEmployee(name, dept, cardId, annualLeaveTotal, baseSalary, posAll
     localStorage.setItem("app_employees_list", JSON.stringify(employeesList));
     localStorage.setItem("app_current_emp_id", currentEmpId);
   } catch (e) {}
+
+  // Đồng bộ nhân viên mới sang CSDL Backend nếu có
+  if (isBackendConnected) {
+    try {
+      fetch(`${API_BASE}/api/employees`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: newEmp.id,
+          name: newEmp.name,
+          dept: newEmp.dept,
+          card_id: newEmp.cardId,
+          start_date: newEmp.startDate,
+          probation_end_date: newEmp.probationEndDate,
+          annual_leave_total: newEmp.annualLeaveTotal
+        })
+      });
+      // Lưu luôn cấu hình lương tháng hiện tại cho nhân viên này lên SQLite
+      const cfgPayload = Object.assign({ emp_id: newId, year: currentYear, month: currentMonth }, customCfg);
+      fetch(`${API_BASE}/api/config/${currentYear}/${currentMonth}?emp_id=${encodeURIComponent(newId)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cfgPayload)
+      });
+    } catch (e) {}
+  }
 
   loadEmployeeData(currentEmpId);
   renderEmployeeSelect();
@@ -448,7 +534,21 @@ function deleteCurrentEmployee() {
   try {
     localStorage.removeItem("emp_data_" + toDelete);
     localStorage.setItem("app_employees_list", JSON.stringify(employeesList));
+    // Dọn dẹp toàn bộ dữ liệu cache của nhân viên bị xóa
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith(`att_${toDelete}_`) || k.startsWith(`cfg_${toDelete}_`))) {
+        localStorage.removeItem(k);
+      }
+    }
   } catch (e) {}
+
+  // Xóa khỏi SQLite backend nếu có
+  if (isBackendConnected) {
+    try {
+      fetch(`${API_BASE}/api/employees/${encodeURIComponent(toDelete)}`, { method: "DELETE" });
+    } catch (e) {}
+  }
 
   currentEmpId = employeesList[0].id;
   localStorage.setItem("app_current_emp_id", currentEmpId);
@@ -1182,8 +1282,12 @@ window.deleteYear = async function(y) {
     delete employeesDataStore[currentEmpId].years[y];
   }
   for (let m = 1; m <= 12; m++) {
-    localStorage.removeItem(`att_${y}_${m}`);
-    localStorage.removeItem(`cfg_${y}_${m}`);
+    localStorage.removeItem(getAttStorageKey(y, m, currentEmpId));
+    localStorage.removeItem(getCfgStorageKey(y, m, currentEmpId));
+    if (currentEmpId === "emp_default") {
+      localStorage.removeItem(`att_${y}_${m}`);
+      localStorage.removeItem(`cfg_${y}_${m}`);
+    }
   }
   try {
     const saved = localStorage.getItem("app_available_years");
@@ -1234,10 +1338,10 @@ function saveYearToMemoryAndStorage(year) {
 
   for (let m = 1; m <= 12; m++) {
     if (monthlyStore[m]) {
-      localStorage.setItem(`att_${year}_${m}`, JSON.stringify(monthlyStore[m]));
+      writeAttStorage(year, m, monthlyStore[m], currentEmpId);
     }
     if (monthlyConfigStore[m]) {
-      localStorage.setItem(`cfg_${year}_${m}`, JSON.stringify(monthlyConfigStore[m]));
+      writeCfgStorage(year, m, monthlyConfigStore[m], currentEmpId);
     }
   }
   addAvailableYear(year);
@@ -1250,10 +1354,8 @@ function getMonthDataForYear(year, month) {
   if (allYearsStore[year] && allYearsStore[year].attendance && allYearsStore[year].attendance[month]) {
     return allYearsStore[year].attendance[month];
   }
-  const saved = localStorage.getItem(`att_${year}_${month}`);
-  if (saved) {
-    try { return JSON.parse(saved); } catch(e) {}
-  }
+  const saved = readAttStorage(year, month, currentEmpId);
+  if (saved) return saved;
   return null;
 }
 
@@ -1264,10 +1366,8 @@ function getMonthConfigForYear(year, month) {
   if (allYearsStore[year] && allYearsStore[year].configs && allYearsStore[year].configs[month]) {
     return allYearsStore[year].configs[month];
   }
-  const saved = localStorage.getItem(`cfg_${year}_${month}`);
-  if (saved) {
-    try { return normalizeConfig(JSON.parse(saved)); } catch(e) {}
-  }
+  const saved = readCfgStorage(year, month, currentEmpId);
+  if (saved) return normalizeConfig(saved);
   return getDefaultSalaryConfig(month);
 }
 
@@ -1318,13 +1418,13 @@ function getLatestSalaryConfigForEmployee(empId = currentEmpId, preferYear = cur
     }
   }
 
-  // 4. Tìm trong localStorage
+  // 4. Tìm trong localStorage tách biệt theo từng nhân viên
   for (let y = preferYear; y >= preferYear - 5; y--) {
     for (let m = 12; m >= 1; m--) {
-      const s = localStorage.getItem(`cfg_${y}_${m}`);
+      const s = readCfgStorage(y, m, empId);
       if (s) {
         try {
-          const norm = normalizeConfig(JSON.parse(s));
+          const norm = normalizeConfig(s);
           if (norm && norm.baseSalary > 0) return JSON.parse(JSON.stringify(norm));
         } catch(e) {}
       }
@@ -1415,8 +1515,8 @@ function saveCurrentMonthInputsToConfigStore() {
     bankAccount: getStr("bankAccount", oldCfg.bankAccount !== undefined ? oldCfg.bankAccount : fallbackBankAcc),
     bankName: getStr("bankName", oldCfg.bankName !== undefined ? oldCfg.bankName : fallbackBankName)
   };
-  // Đồng bộ ngay lập tức vào localStorage để không bao giờ bị mất dữ liệu
-  localStorage.setItem(`cfg_${currentYear}_${currentMonth}`, JSON.stringify(monthlyConfigStore[currentMonth]));
+  // Đồng bộ ngay lập tức vào localStorage tách biệt theo từng nhân viên
+  writeCfgStorage(currentYear, currentMonth, monthlyConfigStore[currentMonth], currentEmpId);
 
   // Đồng bộ vào kho nhân viên hiện tại
   if (!allYearsStore[currentYear]) allYearsStore[currentYear] = {};
@@ -1432,8 +1532,6 @@ function saveCurrentMonthInputsToConfigStore() {
       localStorage.setItem("emp_data_" + currentEmpId, JSON.stringify(employeesDataStore[currentEmpId]));
     } catch (e) {}
   }
-
-
 }
 
 function copySalaryProfile(from, to) {
@@ -1472,7 +1570,7 @@ function applyCurrentMonthSalaryToFutureMonths(silent = false) {
     if (!nextWorked || !silent) {
       if (!monthlyConfigStore[m]) monthlyConfigStore[m] = {};
       copySalaryProfile(curCfg, monthlyConfigStore[m]);
-      localStorage.setItem(`cfg_${currentYear}_${m}`, JSON.stringify(monthlyConfigStore[m]));
+      writeCfgStorage(currentYear, m, monthlyConfigStore[m], currentEmpId);
       if (allYearsStore[currentYear] && allYearsStore[currentYear].configs) {
         allYearsStore[currentYear].configs[m] = JSON.parse(JSON.stringify(monthlyConfigStore[m]));
       }
@@ -1884,30 +1982,22 @@ function initializeDefaultData(inheritedSalaryConfig) {
   for (let m = 1; m <= 12; m++) {
     monthlyConfigStore[m] = JSON.parse(JSON.stringify(baseCfg));
     
-    // Check if saved in localStorage
-    const savedCfg = localStorage.getItem(`cfg_${currentYear}_${m}`);
+    // Check if saved in localStorage tách biệt theo nhân viên
+    const savedCfg = readCfgStorage(currentYear, m, currentEmpId);
     if (savedCfg) {
       try {
-        const p = JSON.parse(savedCfg);
-        monthlyConfigStore[m] = normalizeConfig(p);
+        monthlyConfigStore[m] = normalizeConfig(savedCfg);
       } catch(e) {}
     }
 
     const totalDays = getDaysInMonth(currentYear, m);
     monthlyStore[m] = {};
 
-    // 1. ƯU TIÊN SỐ 1: Nạp từ localStorage nếu người dùng đã từng lưu/chấm công tháng này
-    if (currentEmpId === "emp_default") {
-      const savedAtt = localStorage.getItem(`att_${currentYear}_${m}`);
-      if (savedAtt) {
-        try {
-          const parsed = JSON.parse(savedAtt);
-          if (parsed && Object.keys(parsed).length > 0) {
-            monthlyStore[m] = parsed;
-            continue; // ĐÃ CÓ DỮ LIỆU ĐƯỢC LƯU, GIỮ NGUYÊN DỮ LIỆU CỦA NGƯỜI DÙNG!
-          }
-        } catch(e) {}
-      }
+    // 1. ƯU TIÊN SỐ 1: Nạp từ localStorage nếu nhân viên này đã từng lưu/chấm công tháng này
+    const savedAtt = readAttStorage(currentYear, m, currentEmpId);
+    if (savedAtt && Object.keys(savedAtt).length > 0) {
+      monthlyStore[m] = savedAtt;
+      continue; // ĐÃ CÓ DỮ LIỆU ĐƯỢC LƯU, GIỮ NGUYÊN DỮ LIỆU CỦA NGƯỜI DÙNG!
     }
 
     // 2. CHỈ NẠP DỮ LIỆU THỰC TẾ CHO NĂM 2026 THÁNG 11 (Không nạp cho các năm mới hay tháng tương lai)
@@ -2336,7 +2426,7 @@ function renderUnifiedTable() {
 window.setDayShift = function(day, shiftType) {
   applyShiftToDay(currentMonth, day, shiftType);
   if (monthlyStore[currentMonth]) {
-    localStorage.setItem(`att_${currentYear}_${currentMonth}`, JSON.stringify(monthlyStore[currentMonth]));
+    writeAttStorage(currentYear, currentMonth, monthlyStore[currentMonth], currentEmpId);
   }
   if (!monthlyConfigStore[currentMonth]) {
     monthlyConfigStore[currentMonth] = getDefaultSalaryConfig(currentMonth);
@@ -2797,7 +2887,7 @@ function recalculateMonth(nightShiftsCount) {
     monthlyConfigStore[currentMonth].allowanceNight = calc.nightSubsidy;
     monthlyConfigStore[currentMonth].allowanceMealNight = calc.mealNight;
     monthlyConfigStore[currentMonth].lastNightShifts = calc.nightShifts;
-    localStorage.setItem(`cfg_${currentYear}_${currentMonth}`, JSON.stringify(monthlyConfigStore[currentMonth]));
+    writeCfgStorage(currentYear, currentMonth, monthlyConfigStore[currentMonth], currentEmpId);
   }
 
   // Part III & IV
@@ -3283,8 +3373,8 @@ function applyDayShiftToMonth(m) {
   monthlyConfigStore[m].allowanceMealNight = 0;
   monthlyConfigStore[m].isManualNight = false;
 
-  localStorage.setItem(`att_${currentYear}_${m}`, JSON.stringify(monthlyStore[m]));
-  localStorage.setItem(`cfg_${currentYear}_${m}`, JSON.stringify(monthlyConfigStore[m]));
+  writeAttStorage(currentYear, m, monthlyStore[m], currentEmpId);
+  writeCfgStorage(currentYear, m, monthlyConfigStore[m], currentEmpId);
   saveCurrentMonthInputsToConfigStore();
   flushAutoSave();
   renderUnifiedTable();
@@ -3317,8 +3407,8 @@ function applyNightShiftToMonth(m) {
   monthlyConfigStore[m].allowanceMealNight = autoMeal;
   monthlyConfigStore[m].isManualNight = false;
 
-  localStorage.setItem(`att_${currentYear}_${m}`, JSON.stringify(monthlyStore[m]));
-  localStorage.setItem(`cfg_${currentYear}_${m}`, JSON.stringify(monthlyConfigStore[m]));
+  writeAttStorage(currentYear, m, monthlyStore[m], currentEmpId);
+  writeCfgStorage(currentYear, m, monthlyConfigStore[m], currentEmpId);
   saveCurrentMonthInputsToConfigStore();
   flushAutoSave();
   renderUnifiedTable();
@@ -3362,8 +3452,8 @@ document.getElementById("btnQuickFillRotating").addEventListener("click", () => 
   monthlyConfigStore[currentMonth].allowanceMealNight = autoMeal;
   monthlyConfigStore[currentMonth].isManualNight = false;
 
-  localStorage.setItem(`att_${currentYear}_${currentMonth}`, JSON.stringify(monthlyStore[currentMonth]));
-  localStorage.setItem(`cfg_${currentYear}_${currentMonth}`, JSON.stringify(monthlyConfigStore[currentMonth]));
+  writeAttStorage(currentYear, currentMonth, monthlyStore[currentMonth], currentEmpId);
+  writeCfgStorage(currentYear, currentMonth, monthlyConfigStore[currentMonth], currentEmpId);
   saveCurrentMonthInputsToConfigStore();
   flushAutoSave();
   renderUnifiedTable();
@@ -3376,7 +3466,7 @@ document.getElementById("btnQuickClearAll").addEventListener("click", () => {
     for (let d = 1; d <= totalDays; d++) {
       applyShiftToDay(currentMonth, d, "off");
     }
-    localStorage.setItem(`att_${currentYear}_${currentMonth}`, JSON.stringify(monthlyStore[currentMonth]));
+    writeAttStorage(currentYear, currentMonth, monthlyStore[currentMonth], currentEmpId);
     saveCurrentMonthInputsToConfigStore();
     flushAutoSave();
     renderUnifiedTable();
@@ -3936,31 +4026,37 @@ function normalizeConfig(cfg) {
   };
 }
 
-async function loadAllMonthsFromBackendOrStorage(year) {
+async function loadAllMonthsFromBackendOrStorage(year, empId) {
+  const targetEmpId = empId || currentEmpId || "emp_default";
   if (isBackendConnected) {
     try {
-      // 1. Tải toàn bộ chấm công 12 tháng từ CSDL
-      const resp = await fetch(`${API_BASE}/api/attendance/${year}`);
+      // 1. Tải toàn bộ chấm công 12 tháng từ CSDL cho nhân viên này
+      const resp = await fetch(`${API_BASE}/api/attendance/${year}?emp_id=${encodeURIComponent(targetEmpId)}`);
       if (resp.ok) {
         const data = await resp.json();
         if (data.months) {
           for (let m = 1; m <= 12; m++) {
             if (data.months[m] && Object.keys(data.months[m]).length > 0) {
-              monthlyStore[m] = data.months[m];
-              localStorage.setItem(`att_${year}_${m}`, JSON.stringify(monthlyStore[m]));
+              if (targetEmpId === currentEmpId) {
+                monthlyStore[m] = data.months[m];
+              }
+              writeAttStorage(year, m, data.months[m], targetEmpId);
             }
           }
         }
       }
-      // 2. Tải toàn bộ cấu hình lương 12 tháng từ CSDL
-      const cfgResp = await fetch(`${API_BASE}/api/config/${year}`);
+      // 2. Tải toàn bộ cấu hình lương 12 tháng từ CSDL cho nhân viên này
+      const cfgResp = await fetch(`${API_BASE}/api/config/${year}?emp_id=${encodeURIComponent(targetEmpId)}`);
       if (cfgResp.ok) {
         const data = await cfgResp.json();
         if (data.configs) {
           for (let m = 1; m <= 12; m++) {
             if (data.configs[m]) {
-              monthlyConfigStore[m] = normalizeConfig(data.configs[m]);
-              localStorage.setItem(`cfg_${year}_${m}`, JSON.stringify(monthlyConfigStore[m]));
+              const norm = normalizeConfig(data.configs[m]);
+              if (targetEmpId === currentEmpId) {
+                monthlyConfigStore[m] = norm;
+              }
+              writeCfgStorage(year, m, norm, targetEmpId);
             }
           }
         }
@@ -3969,57 +4065,62 @@ async function loadAllMonthsFromBackendOrStorage(year) {
       console.warn("Lỗi tải toàn bộ năm từ backend, dùng localStorage:", e);
     }
   } else {
-    // Chế độ Offline: Đồng bộ từ localStorage của toàn bộ 12 tháng
+    // Chế độ Offline: Đồng bộ từ localStorage tách biệt của nhân viên này
     for (let m = 1; m <= 12; m++) {
-      const sAtt = localStorage.getItem(`att_${year}_${m}`);
+      const sAtt = readAttStorage(year, m, targetEmpId);
       if (sAtt) {
-        try { monthlyStore[m] = JSON.parse(sAtt); } catch(e){}
+        if (targetEmpId === currentEmpId) monthlyStore[m] = sAtt;
       }
-      const sCfg = localStorage.getItem(`cfg_${year}_${m}`);
+      const sCfg = readCfgStorage(year, m, targetEmpId);
       if (sCfg) {
-        try { monthlyConfigStore[m] = normalizeConfig(JSON.parse(sCfg)); } catch(e){}
+        const norm = normalizeConfig(sCfg);
+        if (targetEmpId === currentEmpId) monthlyConfigStore[m] = norm;
       }
     }
   }
 }
 
-async function loadFromBackendOrStorage(month, year) {
+async function loadFromBackendOrStorage(month, year, empId) {
+  const targetEmpId = empId || currentEmpId || "emp_default";
   if (isBackendConnected) {
     try {
-      // 1. Load attendance
-      const attResp = await fetch(`${API_BASE}/api/attendance/${year}/${month}`);
+      // 1. Load attendance cho nhân viên này
+      const attResp = await fetch(`${API_BASE}/api/attendance/${year}/${month}?emp_id=${encodeURIComponent(targetEmpId)}`);
       if (attResp.ok) {
         const attData = await attResp.json();
         if (attData.days && Object.keys(attData.days).length > 0) {
-          monthlyStore[month] = attData.days;
-          localStorage.setItem(`att_${year}_${month}`, JSON.stringify(monthlyStore[month]));
+          if (targetEmpId === currentEmpId) monthlyStore[month] = attData.days;
+          writeAttStorage(year, month, attData.days, targetEmpId);
         }
       }
 
-      // 2. Load salary config
-      const cfgResp = await fetch(`${API_BASE}/api/config/${year}/${month}`);
+      // 2. Load salary config cho nhân viên này
+      const cfgResp = await fetch(`${API_BASE}/api/config/${year}/${month}?emp_id=${encodeURIComponent(targetEmpId)}`);
       if (cfgResp.ok) {
         const cfg = await cfgResp.json();
-        applyConfigToInputs(cfg);
-        monthlyConfigStore[month] = normalizeConfig(cfg);
-        localStorage.setItem(`cfg_${year}_${month}`, JSON.stringify(monthlyConfigStore[month]));
+        const norm = normalizeConfig(cfg);
+        if (targetEmpId === currentEmpId) {
+          applyConfigToInputs(norm);
+          monthlyConfigStore[month] = norm;
+        }
+        writeCfgStorage(year, month, norm, targetEmpId);
       }
     } catch (e) {
-      console.warn("Lỗi tải từ backend, dùng bộ nhớ cục bộ:", e);
+      console.warn(`Lỗi tải từ backend cho ${targetEmpId}, dùng bộ nhớ cục bộ:`, e);
     }
   } else {
     // Load from localStorage if available
-    const localAtt = localStorage.getItem(`att_${year}_${month}`);
+    const localAtt = readAttStorage(year, month, targetEmpId);
     if (localAtt) {
-      try { monthlyStore[month] = JSON.parse(localAtt); } catch(e){}
+      if (targetEmpId === currentEmpId) monthlyStore[month] = localAtt;
     }
-    const localCfg = localStorage.getItem(`cfg_${year}_${month}`);
+    const localCfg = readCfgStorage(year, month, targetEmpId);
     if (localCfg) {
-      try {
-        const parsed = JSON.parse(localCfg);
-        applyConfigToInputs(parsed);
-        monthlyConfigStore[month] = normalizeConfig(parsed);
-      } catch(e){}
+      const norm = normalizeConfig(localCfg);
+      if (targetEmpId === currentEmpId) {
+        applyConfigToInputs(norm);
+        monthlyConfigStore[month] = norm;
+      }
     }
   }
 }
@@ -4062,6 +4163,7 @@ function applyConfigToInputs(cfg) {
 
 function collectConfigPayload() {
   return {
+    emp_id: currentEmpId,
     year: currentYear,
     month: currentMonth,
     base_salary: parseVal(document.getElementById("baseSalary").value),
@@ -4076,7 +4178,7 @@ function collectConfigPayload() {
     allowance_meal_night: parseVal(document.getElementById("allowanceMealNight").value),
     allowance_period: parseVal(document.getElementById("allowancePeriod").value),
     allowance_other: parseVal(document.getElementById("allowanceOther").value),
-        bonus_attendance: parseVal(document.getElementById("bonusAttendance").value),
+    bonus_attendance: parseVal(document.getElementById("bonusAttendance").value),
     bonus_full_attendance: parseVal(document.getElementById("bonusFullAttendance") ? document.getElementById("bonusFullAttendance").value : 0),
     bonus_efficiency: parseVal(document.getElementById("bonusEfficiency") ? document.getElementById("bonusEfficiency").value : 0),
     bonus_quality_star: parseVal(document.getElementById("bonusQualityStar") ? document.getElementById("bonusQualityStar").value : 0),
@@ -4089,11 +4191,16 @@ function collectConfigPayload() {
   };
 }
 
-async function saveCurrentMonthToBackend(silent = false) {
-  // Save to localStorage as backup
-  localStorage.setItem(`att_${currentYear}_${currentMonth}`, JSON.stringify(monthlyStore[currentMonth] || {}));
+async function saveCurrentMonthToBackend(silent = false, empId) {
+  const targetEmpId = empId || currentEmpId || "emp_default";
+  // Lưu vào localStorage tách biệt theo nhân viên
+  writeAttStorage(currentYear, currentMonth, monthlyStore[currentMonth] || {}, targetEmpId);
   const cfgPayload = collectConfigPayload();
-  localStorage.setItem(`cfg_${currentYear}_${currentMonth}`, JSON.stringify(cfgPayload));
+  cfgPayload.emp_id = targetEmpId;
+  writeCfgStorage(currentYear, currentMonth, cfgPayload, targetEmpId);
+
+  // Sync vào allYearsStore và employeesDataStore
+  saveYearToMemoryAndStorage(currentYear);
 
   if (!isBackendConnected) {
     if (!silent) showToast("Đã lưu dữ liệu vào trình duyệt (Offline)", "info");
@@ -4101,19 +4208,20 @@ async function saveCurrentMonthToBackend(silent = false) {
   }
 
   try {
-    // 1. Save attendance
-    const attResp = await fetch(`${API_BASE}/api/attendance/${currentYear}/${currentMonth}`, {
+    // 1. Save attendance to SQLite with emp_id
+    const attResp = await fetch(`${API_BASE}/api/attendance/${currentYear}/${currentMonth}?emp_id=${encodeURIComponent(targetEmpId)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        emp_id: targetEmpId,
         year: currentYear,
         month: currentMonth,
         days: monthlyStore[currentMonth] || {}
       })
     });
 
-    // 2. Save salary config
-    const cfgResp = await fetch(`${API_BASE}/api/config/${currentYear}/${currentMonth}`, {
+    // 2. Save salary config to SQLite with emp_id
+    const cfgResp = await fetch(`${API_BASE}/api/config/${currentYear}/${currentMonth}?emp_id=${encodeURIComponent(targetEmpId)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(cfgPayload)
@@ -4182,17 +4290,17 @@ async function pushToFirebase(silent = false) {
         if (attYear[m] && Object.keys(attYear[m]).length > 0) {
           finalAtt[m] = attYear[m];
         } else {
-          const s = localStorage.getItem(`att_${y}_${m}`);
+          const s = readAttStorage(y, m, currentEmpId);
           if (s) {
-            try { finalAtt[m] = JSON.parse(s); } catch(e) {}
+            finalAtt[m] = s;
           }
         }
         if (cfgYear[m]) {
           finalCfg[m] = cfgYear[m];
         } else {
-          const s = localStorage.getItem(`cfg_${y}_${m}`);
+          const s = readCfgStorage(y, m, currentEmpId);
           if (s) {
-            try { finalCfg[m] = JSON.parse(s); } catch(e) {}
+            finalCfg[m] = s;
           }
         }
       }
@@ -4298,7 +4406,7 @@ async function pullFromFirebase(silent = false) {
             for (let m = 1; m <= 12; m++) {
               if (yObj.attendance[m] && Object.keys(yObj.attendance[m]).length > 0) {
                 allYearsStore[yNum].attendance[m] = yObj.attendance[m];
-                localStorage.setItem(`att_${yNum}_${m}`, JSON.stringify(yObj.attendance[m]));
+                writeAttStorage(yNum, m, yObj.attendance[m], currentEmpId);
                 if (yNum === currentYear) monthlyStore[m] = yObj.attendance[m];
               }
             }
@@ -4317,7 +4425,7 @@ async function pullFromFirebase(silent = false) {
               if (yObj.configs[m]) {
                 const norm = normalizeConfig(yObj.configs[m]);
                 allYearsStore[yNum].configs[m] = norm;
-                localStorage.setItem(`cfg_${yNum}_${m}`, JSON.stringify(norm));
+                writeCfgStorage(yNum, m, norm, currentEmpId);
                 if (yNum === currentYear) monthlyConfigStore[m] = norm;
               }
             }
@@ -4602,9 +4710,9 @@ window.addEventListener("DOMContentLoaded", async () => {
   setupAuthenticationControls();
   checkAuthentication();
   await checkBackendStatus();
-  // 1. Nạp từ localStorage để hiển thị tức thì 0 giây
-  await loadAllMonthsFromBackendOrStorage(currentYear);
-  await loadFromBackendOrStorage(currentMonth, currentYear);
+  // 1. Nạp từ CSDL / localStorage tách biệt theo nhân viên hiện tại (currentEmpId)
+  await loadAllMonthsFromBackendOrStorage(currentYear, currentEmpId);
+  await loadFromBackendOrStorage(currentMonth, currentYear, currentEmpId);
   loadConfigStoreToInputs(currentMonth);
   renderUnifiedTable();
 

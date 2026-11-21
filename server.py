@@ -16,15 +16,36 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "database.sqlite")
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA foreign_keys = ON")
     conn.row_factory = sqlite3.Row
     return conn
 
 def init_db():
     with get_db() as conn:
         cursor = conn.cursor()
-        # Table 1: Attendance days
+        # Table 0: Employees
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS employees (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                dept TEXT,
+                card_id TEXT,
+                start_date TEXT,
+                probation_end_date TEXT,
+                annual_leave_total REAL DEFAULT 10,
+                created_at TEXT,
+                updated_at TEXT
+            )
+        """)
+        cursor.execute("""
+            INSERT OR IGNORE INTO employees (id, name, dept, card_id, start_date, probation_end_date, annual_leave_total)
+            VALUES ('emp_default', 'Nguyễn Công Thịnh', '工程部 (Bộ phận Kỹ thuật)', '1028', '21/7/2025', '20/9/2025', 10)
+        """)
+
+        # Table 1: Attendance days with foreign key to employees
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS attendance (
+                emp_id TEXT NOT NULL DEFAULT 'emp_default',
                 year INTEGER NOT NULL,
                 month INTEGER NOT NULL,
                 day INTEGER NOT NULL,
@@ -38,14 +59,19 @@ def init_db():
                 ot270 REAL,
                 ot300 REAL,
                 ot390 REAL,
+                leave_type TEXT,
+                leave_paid REAL,
+                leave_unpaid REAL,
                 updated_at TEXT,
-                PRIMARY KEY (year, month, day)
+                PRIMARY KEY (emp_id, year, month, day),
+                FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE CASCADE
             )
         """)
         
-        # Table 2: Salary Configuration & Allowances
+        # Table 2: Salary Configuration with foreign key to employees & all bonus fields
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS salary_config (
+                emp_id TEXT NOT NULL DEFAULT 'emp_default',
                 year INTEGER NOT NULL,
                 month INTEGER NOT NULL,
                 base_salary REAL DEFAULT 6300000,
@@ -61,12 +87,18 @@ def init_db():
                 allowance_period REAL DEFAULT 0,
                 allowance_other REAL DEFAULT 0,
                 bonus_attendance REAL DEFAULT 600000,
+                bonus_full_attendance REAL DEFAULT 0,
+                bonus_efficiency REAL DEFAULT 0,
+                bonus_quality_star REAL DEFAULT 0,
+                bonus_performance REAL DEFAULT 0,
                 bonus_kpi REAL DEFAULT 3050000,
+                bonus_recruitment REAL DEFAULT 0,
                 is_tax_exempt INTEGER DEFAULT 1,
                 bank_account TEXT DEFAULT 'STK: 102884878810',
                 bank_name TEXT DEFAULT 'VietinBank',
                 updated_at TEXT,
-                PRIMARY KEY (year, month)
+                PRIMARY KEY (emp_id, year, month),
+                FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE CASCADE
             )
         """)
 
@@ -109,13 +141,18 @@ class DayAttendance(BaseModel):
     ot270: Optional[Any] = None
     ot300: Optional[Any] = None
     ot390: Optional[Any] = None
+    leave_type: Optional[str] = ""
+    leave_paid: Optional[float] = 0
+    leave_unpaid: Optional[float] = 0
 
 class MonthAttendancePayload(BaseModel):
+    emp_id: Optional[str] = "emp_default"
     year: int
     month: int
     days: Dict[int, DayAttendance]
 
 class SalaryConfigPayload(BaseModel):
+    emp_id: Optional[str] = "emp_default"
     year: int
     month: int
     base_salary: Optional[float] = 6300000
@@ -131,10 +168,24 @@ class SalaryConfigPayload(BaseModel):
     allowance_period: Optional[float] = 0
     allowance_other: Optional[float] = 0
     bonus_attendance: Optional[float] = 600000
+    bonus_full_attendance: Optional[float] = 0
+    bonus_efficiency: Optional[float] = 0
+    bonus_quality_star: Optional[float] = 0
+    bonus_performance: Optional[float] = 0
     bonus_kpi: Optional[float] = 3050000
+    bonus_recruitment: Optional[float] = 0
     is_tax_exempt: Optional[int] = 1
     bank_account: Optional[str] = "STK: 102884878810"
     bank_name: Optional[str] = "VietinBank"
+
+class EmployeePayload(BaseModel):
+    id: str
+    name: str
+    dept: Optional[str] = ""
+    card_id: Optional[str] = ""
+    start_date: Optional[str] = ""
+    probation_end_date: Optional[str] = ""
+    annual_leave_total: Optional[float] = 10
 
 def to_num(val):
     if val is None or val == "":
@@ -147,13 +198,20 @@ def to_num(val):
 def seed_sample_if_empty():
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) as count FROM attendance")
+        cursor.execute("SELECT COUNT(*) as count FROM attendance WHERE emp_id = 'emp_default'")
         cnt = cursor.fetchone()["count"]
         if cnt == 0:
-            # Seed Month 12 (Day Shift sample) and Month 11 (Night Shift sample) for 2026
+            # Seed Month 12 (Day Shift sample) and Month 11 (Night Shift sample) for 2026 for emp_default
             year = 2026
+            emp_id = "emp_default"
             now_iso = datetime.now().isoformat()
             
+            # Ensure emp_default exists in employees table
+            cursor.execute("""
+                INSERT OR IGNORE INTO employees (id, name, dept, card_id, start_date, probation_end_date, annual_leave_total)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (emp_id, "Nguyễn Công Thịnh", "工程部 (Bộ phận Kỹ thuật)", "1028", "21/7/2025", "20/9/2025", 10))
+
             # Month 12
             for d in range(1, 32):
                 dt = datetime(year, 12, d)
@@ -169,9 +227,9 @@ def seed_sample_if_empty():
                 
                 cursor.execute("""
                     INSERT OR REPLACE INTO attendance 
-                    (year, month, day, shift, std, actual, ot130, ot150, ot200, ot210, ot270, ot300, ot390, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (year, 12, d, shift, std, act, None, ot150, ot200, None, None, None, None, now_iso))
+                    (emp_id, year, month, day, shift, std, actual, ot130, ot150, ot200, ot210, ot270, ot300, ot390, leave_type, leave_paid, leave_unpaid, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', 0, 0, ?)
+                """, (emp_id, year, 12, d, shift, std, act, None, ot150, ot200, None, None, None, None, now_iso))
             
             # Month 11
             for d in range(1, 31):
@@ -197,24 +255,26 @@ def seed_sample_if_empty():
                 
                 cursor.execute("""
                     INSERT OR REPLACE INTO attendance 
-                    (year, month, day, shift, std, actual, ot130, ot150, ot200, ot210, ot270, ot300, ot390, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (year, 11, d, shift, std, act, ot130, ot150, ot200, ot210, ot270, None, None, now_iso))
+                    (emp_id, year, month, day, shift, std, actual, ot130, ot150, ot200, ot210, ot270, ot300, ot390, leave_type, leave_paid, leave_unpaid, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', 0, 0, ?)
+                """, (emp_id, year, 11, d, shift, std, act, ot130, ot150, ot200, ot210, ot270, None, None, now_iso))
             
-            # Default Configs
+            # Default Configs for emp_default
             cursor.execute("""
                 INSERT OR REPLACE INTO salary_config 
-                (year, month, base_salary, pos_allowance, sen_allowance, kpi_coeff, allowance_gas, allowance_house, 
-                 allowance_night, allowance_meal_night, bonus_attendance, bonus_kpi, is_tax_exempt, updated_at)
-                VALUES (2026, 12, 6300000, 2450000, 100000, 1.0, 500000, 500000, 0, 0, 600000, 3050000, 1, ?)
-            """, (now_iso,))
+                (emp_id, year, month, base_salary, pos_allowance, sen_allowance, kpi_coeff, allowance_gas, allowance_house, 
+                 allowance_night, allowance_meal_night, bonus_attendance, bonus_full_attendance, bonus_efficiency,
+                 bonus_quality_star, bonus_performance, bonus_kpi, bonus_recruitment, is_tax_exempt, updated_at)
+                VALUES (?, 2026, 12, 6300000, 2450000, 100000, 1.0, 500000, 500000, 0, 0, 600000, 0, 0, 0, 0, 3050000, 0, 1, ?)
+            """, (emp_id, now_iso))
             
             cursor.execute("""
                 INSERT OR REPLACE INTO salary_config 
-                (year, month, base_salary, pos_allowance, sen_allowance, kpi_coeff, allowance_gas, allowance_house, 
-                 allowance_night, allowance_meal_night, bonus_attendance, bonus_kpi, is_tax_exempt, updated_at)
-                VALUES (2026, 11, 6300000, 2450000, 100000, 1.0, 500000, 500000, 780000, 650000, 600000, 3050000, 1, ?)
-            """, (now_iso,))
+                (emp_id, year, month, base_salary, pos_allowance, sen_allowance, kpi_coeff, allowance_gas, allowance_house, 
+                 allowance_night, allowance_meal_night, bonus_attendance, bonus_full_attendance, bonus_efficiency,
+                 bonus_quality_star, bonus_performance, bonus_kpi, bonus_recruitment, is_tax_exempt, updated_at)
+                VALUES (?, 2026, 11, 6300000, 2450000, 100000, 1.0, 500000, 500000, 780000, 650000, 600000, 0, 0, 0, 0, 3050000, 0, 1, ?)
+            """, (emp_id, now_iso))
             
             conn.commit()
 
@@ -223,21 +283,92 @@ def seed_sample_if_empty():
 def get_status():
     return {
         "status": "online",
-        "message": "Backend Chấm Công & Tính Lương đang hoạt động",
-        "database": "SQLite",
+        "message": "Backend Chấm Công & Tính Lương đang hoạt động (Đa nhân viên)",
+        "database": "SQLite (Foreign Key: emp_id)",
         "timestamp": datetime.now().isoformat()
     }
 
-@app.get("/api/attendance/{year}/{month}")
-def get_attendance(year: int, month: int):
+@app.get("/api/employees")
+def list_employees():
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM employees ORDER BY rowid ASC")
+        rows = cursor.fetchall()
+        return {"employees": [dict(r) for r in rows]}
+
+@app.post("/api/employees")
+def save_employee(payload: EmployeePayload):
+    now_iso = datetime.now().isoformat()
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT day, shift, std, actual, ot130, ot150, ot200, ot210, ot270, ot300, ot390 
+            INSERT INTO employees (id, name, dept, card_id, start_date, probation_end_date, annual_leave_total, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                dept = excluded.dept,
+                card_id = excluded.card_id,
+                start_date = excluded.start_date,
+                probation_end_date = excluded.probation_end_date,
+                annual_leave_total = excluded.annual_leave_total,
+                updated_at = excluded.updated_at
+        """, (payload.id, payload.name, payload.dept, payload.card_id, payload.start_date, payload.probation_end_date, payload.annual_leave_total, now_iso, now_iso))
+        conn.commit()
+    return {"success": True, "message": f"Đã lưu hồ sơ nhân viên {payload.name}"}
+
+@app.delete("/api/employees/{emp_id}")
+def delete_employee(emp_id: str):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM employees WHERE id = ?", (emp_id,))
+        cursor.execute("DELETE FROM attendance WHERE emp_id = ?", (emp_id,))
+        cursor.execute("DELETE FROM salary_config WHERE emp_id = ?", (emp_id,))
+        conn.commit()
+    return {"success": True, "message": f"Đã xóa nhân viên {emp_id}"}
+
+@app.get("/api/attendance/{year}")
+def get_year_attendance(year: int, emp_id: str = Query("emp_default")):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT month, day, shift, std, actual, ot130, ot150, ot200, ot210, ot270, ot300, ot390, leave_type, leave_paid, leave_unpaid 
             FROM attendance 
-            WHERE year = ? AND month = ?
+            WHERE emp_id = ? AND year = ?
+            ORDER BY month ASC, day ASC
+        """, (emp_id, year))
+        rows = cursor.fetchall()
+        months_dict = {}
+        for r in rows:
+            m = r["month"]
+            if m not in months_dict:
+                months_dict[m] = {}
+            months_dict[m][r["day"]] = {
+                "shift": r["shift"],
+                "std": r["std"] if r["std"] is not None else "",
+                "actual": r["actual"] if r["actual"] is not None else "",
+                "ot130": r["ot130"] if r["ot130"] is not None else "",
+                "ot150": r["ot150"] if r["ot150"] is not None else "",
+                "ot200": r["ot200"] if r["ot200"] is not None else "",
+                "ot210": r["ot210"] if r["ot210"] is not None else "",
+                "ot270": r["ot270"] if r["ot270"] is not None else "",
+                "ot300": r["ot300"] if r["ot300"] is not None else "",
+                "ot390": r["ot390"] if r["ot390"] is not None else "",
+                "leave_type": r["leave_type"] if "leave_type" in r.keys() and r["leave_type"] is not None else "",
+                "leave_paid": r["leave_paid"] if "leave_paid" in r.keys() and r["leave_paid"] is not None else 0,
+                "leave_unpaid": r["leave_unpaid"] if "leave_unpaid" in r.keys() and r["leave_unpaid"] is not None else 0
+            }
+        return {"emp_id": emp_id, "year": year, "months": months_dict}
+
+@app.get("/api/attendance/{year}/{month}")
+def get_attendance(year: int, month: int, emp_id: str = Query("emp_default")):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT day, shift, std, actual, ot130, ot150, ot200, ot210, ot270, ot300, ot390, leave_type, leave_paid, leave_unpaid 
+            FROM attendance 
+            WHERE emp_id = ? AND year = ? AND month = ?
             ORDER BY day ASC
-        """, (year, month))
+        """, (emp_id, year, month))
         rows = cursor.fetchall()
         
         days_dict = {}
@@ -253,88 +384,117 @@ def get_attendance(year: int, month: int):
                 "ot270": r["ot270"] if r["ot270"] is not None else "",
                 "ot300": r["ot300"] if r["ot300"] is not None else "",
                 "ot390": r["ot390"] if r["ot390"] is not None else "",
+                "leave_type": r["leave_type"] if "leave_type" in r.keys() and r["leave_type"] is not None else "",
+                "leave_paid": r["leave_paid"] if "leave_paid" in r.keys() and r["leave_paid"] is not None else 0,
+                "leave_unpaid": r["leave_unpaid"] if "leave_unpaid" in r.keys() and r["leave_unpaid"] is not None else 0
             }
-        return {"year": year, "month": month, "days": days_dict}
+        return {"emp_id": emp_id, "year": year, "month": month, "days": days_dict}
 
 @app.post("/api/attendance/{year}/{month}")
-def save_month_attendance(year: int, month: int, payload: MonthAttendancePayload, background_tasks: BackgroundTasks):
+def save_month_attendance(year: int, month: int, payload: MonthAttendancePayload, background_tasks: BackgroundTasks, emp_id: Optional[str] = Query(None)):
+    target_emp_id = payload.emp_id or emp_id or "emp_default"
     now_iso = datetime.now().isoformat()
     with get_db() as conn:
         cursor = conn.cursor()
+        # Ensure employee row exists
+        cursor.execute("INSERT OR IGNORE INTO employees (id, name) VALUES (?, ?)", (target_emp_id, target_emp_id))
+        
         for day, item in payload.days.items():
             cursor.execute("""
                 INSERT OR REPLACE INTO attendance 
-                (year, month, day, shift, std, actual, ot130, ot150, ot200, ot210, ot270, ot300, ot390, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (emp_id, year, month, day, shift, std, actual, ot130, ot150, ot200, ot210, ot270, ot300, ot390, leave_type, leave_paid, leave_unpaid, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                year, month, int(day), item.shift or "day",
+                target_emp_id, year, month, int(day), item.shift or "day",
                 to_num(item.std), to_num(item.actual),
                 to_num(item.ot130), to_num(item.ot150), to_num(item.ot200),
                 to_num(item.ot210), to_num(item.ot270), to_num(item.ot300), to_num(item.ot390),
+                item.leave_type or "", to_num(item.leave_paid) or 0, to_num(item.leave_unpaid) or 0,
                 now_iso
             ))
         conn.commit()
     
     # Auto-sync to Google Drive in background if configured
     background_tasks.add_task(trigger_gdrive_sync)
-    return {"success": True, "message": f"Đã lưu chấm công Tháng {month}/{year} thành công."}
+    return {"success": True, "emp_id": target_emp_id, "message": f"Đã lưu chấm công Tháng {month}/{year} của nhân viên {target_emp_id} thành công."}
 
-@app.get("/api/config/{year}/{month}")
-def get_salary_config(year: int, month: int):
+@app.get("/api/config/{year}")
+def get_year_config(year: int, emp_id: str = Query("emp_default")):
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM salary_config WHERE year = ? AND month = ?", (year, month))
+        cursor.execute("SELECT * FROM salary_config WHERE emp_id = ? AND year = ?", (emp_id, year))
+        rows = cursor.fetchall()
+        return {"emp_id": emp_id, "year": year, "configs": {r["month"]: dict(r) for r in rows}}
+
+@app.get("/api/config/{year}/{month}")
+def get_salary_config(year: int, month: int, emp_id: str = Query("emp_default")):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM salary_config WHERE emp_id = ? AND year = ? AND month = ?", (emp_id, year, month))
         row = cursor.fetchone()
         if not row:
-            # Fallback to general default
+            # Fallback to general default for this employee
             return {
+                "emp_id": emp_id,
                 "year": year,
                 "month": month,
                 "base_salary": 6300000,
-                "pos_allowance": 2450000,
-                "sen_allowance": 100000,
+                "pos_allowance": 2450000 if emp_id == "emp_default" else 0,
+                "sen_allowance": 100000 if emp_id == "emp_default" else 0,
                 "kpi_coeff": 1.0,
                 "allowance_gas": 500000,
                 "allowance_house": 500000,
                 "allowance_child": 0,
                 "allowance_safety": 0,
-                "allowance_night": 780000 if month == 11 else 0,
-                "allowance_meal_night": 650000 if month == 11 else 0,
+                "allowance_night": 780000 if (month == 11 and emp_id == "emp_default") else 0,
+                "allowance_meal_night": 650000 if (month == 11 and emp_id == "emp_default") else 0,
                 "allowance_period": 0,
                 "allowance_other": 0,
                 "bonus_attendance": 600000,
+                "bonus_full_attendance": 0,
+                "bonus_efficiency": 0,
+                "bonus_quality_star": 0,
+                "bonus_performance": 0,
                 "bonus_kpi": 3050000,
+                "bonus_recruitment": 0,
                 "is_tax_exempt": 1,
-                "bank_account": "STK: 102884878810",
-                "bank_name": "VietinBank"
+                "bank_account": "STK: 102884878810" if emp_id == "emp_default" else "",
+                "bank_name": "VietinBank" if emp_id == "emp_default" else ""
             }
         return dict(row)
 
 @app.post("/api/config/{year}/{month}")
-def save_salary_config(year: int, month: int, payload: SalaryConfigPayload, background_tasks: BackgroundTasks):
+def save_salary_config(year: int, month: int, payload: SalaryConfigPayload, background_tasks: BackgroundTasks, emp_id: Optional[str] = Query(None)):
+    target_emp_id = payload.emp_id or emp_id or "emp_default"
     now_iso = datetime.now().isoformat()
     with get_db() as conn:
         cursor = conn.cursor()
+        # Ensure employee exists
+        cursor.execute("INSERT OR IGNORE INTO employees (id, name) VALUES (?, ?)", (target_emp_id, target_emp_id))
+        
         cursor.execute("""
             INSERT OR REPLACE INTO salary_config 
-            (year, month, base_salary, pos_allowance, sen_allowance, kpi_coeff, 
+            (emp_id, year, month, base_salary, pos_allowance, sen_allowance, kpi_coeff, 
              allowance_gas, allowance_house, allowance_child, allowance_safety, 
              allowance_night, allowance_meal_night, allowance_period, allowance_other, 
-             bonus_attendance, bonus_kpi, is_tax_exempt, bank_account, bank_name, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             bonus_attendance, bonus_full_attendance, bonus_efficiency, bonus_quality_star,
+             bonus_performance, bonus_kpi, bonus_recruitment, is_tax_exempt, bank_account, bank_name, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            year, month,
+            target_emp_id, year, month,
             payload.base_salary, payload.pos_allowance, payload.sen_allowance, payload.kpi_coeff,
             payload.allowance_gas, payload.allowance_house, payload.allowance_child, payload.allowance_safety,
             payload.allowance_night, payload.allowance_meal_night, payload.allowance_period, payload.allowance_other,
-            payload.bonus_attendance, payload.bonus_kpi, payload.is_tax_exempt, payload.bank_account, payload.bank_name,
+            payload.bonus_attendance, payload.bonus_full_attendance, payload.bonus_efficiency, payload.bonus_quality_star,
+            payload.bonus_performance, payload.bonus_kpi, payload.bonus_recruitment,
+            payload.is_tax_exempt, payload.bank_account, payload.bank_name,
             now_iso
         ))
         conn.commit()
     
     # Auto-sync to Google Drive in background if configured
     background_tasks.add_task(trigger_gdrive_sync)
-    return {"success": True, "message": f"Đã lưu cấu hình lương Tháng {month}/{year} thành công."}
+    return {"success": True, "emp_id": target_emp_id, "message": f"Đã lưu cấu hình lương Tháng {month}/{year} cho nhân viên {target_emp_id} thành công."}
 
 # ----------------- GOOGLE DRIVE SYNC ENGINE -----------------
 class GDriveSettingsPayload(BaseModel):
