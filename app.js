@@ -356,7 +356,12 @@ function addNewEmployee(name, dept, cardId, annualLeaveTotal, baseSalary, posAll
     cardId: (cardId || "").trim() || ("NV" + Date.now().toString().slice(-4)),
     annualLeaveTotal: (annualLeaveTotal !== undefined && !isNaN(annualLeaveTotal)) ? parseFloat(annualLeaveTotal) : 10,
     startDate: (startDate !== undefined) ? startDate.trim() : "",
-    probationEndDate: (probationEndDate !== undefined) ? probationEndDate.trim() : ""
+    probationEndDate: (probationEndDate !== undefined) ? probationEndDate.trim() : "",
+    baseSalary: (baseSalary !== undefined && !isNaN(baseSalary) && baseSalary > 0) ? baseSalary : 6300000,
+    posAllowance: (posAllowance !== undefined && !isNaN(posAllowance)) ? posAllowance : 0,
+    senAllowance: (senAllowance !== undefined && !isNaN(senAllowance)) ? senAllowance : 0,
+    bankAccount: bankAccount || "",
+    bankName: bankName || ""
   };
   employeesList.push(newEmp);
   window.employeesList = employeesList;
@@ -484,33 +489,45 @@ function updateCurrentEmployeeInfo(name, dept, cardId, annualLeaveTotal, baseSal
   const cfg = monthlyConfigStore[currentMonth];
   if (extraSalaryConfig && typeof extraSalaryConfig === "object") {
     Object.assign(cfg, extraSalaryConfig);
+    if (extraSalaryConfig.baseSalary) emp.baseSalary = extraSalaryConfig.baseSalary;
+    if (extraSalaryConfig.positionAllowance !== undefined) emp.posAllowance = extraSalaryConfig.positionAllowance;
+    if (extraSalaryConfig.seniorityAllowance !== undefined) emp.senAllowance = extraSalaryConfig.seniorityAllowance;
+    if (extraSalaryConfig.bankAccount) emp.bankAccount = extraSalaryConfig.bankAccount;
+    if (extraSalaryConfig.bankName) emp.bankName = extraSalaryConfig.bankName;
+    writeCfgStorage(currentYear, currentMonth, cfg, currentEmpId);
     loadConfigStoreToInputs(currentMonth);
   } else {
     if (baseSalary !== undefined && !isNaN(baseSalary) && baseSalary > 0) {
       cfg.baseSalary = baseSalary;
+      emp.baseSalary = baseSalary;
       const el = document.getElementById("baseSalary");
       if (el) el.value = baseSalary;
     }
     if (posAllowance !== undefined && !isNaN(posAllowance)) {
       cfg.positionAllowance = posAllowance;
+      emp.posAllowance = posAllowance;
       const el = document.getElementById("positionAllowance");
       if (el) el.value = posAllowance;
     }
     if (senAllowance !== undefined && !isNaN(senAllowance)) {
       cfg.seniorityAllowance = senAllowance;
+      emp.senAllowance = senAllowance;
       const el = document.getElementById("seniorityAllowance");
       if (el) el.value = senAllowance;
     }
     if (bankAccount !== undefined) {
       cfg.bankAccount = bankAccount.trim();
+      emp.bankAccount = cfg.bankAccount;
       const el = document.getElementById("bankAccount");
       if (el) el.value = cfg.bankAccount;
     }
     if (bankName !== undefined) {
       cfg.bankName = bankName.trim();
+      emp.bankName = cfg.bankName;
       const el = document.getElementById("bankName");
       if (el) el.value = cfg.bankName;
     }
+    writeCfgStorage(currentYear, currentMonth, cfg, currentEmpId);
   }
 
   saveCurrentEmployeeData();
@@ -1814,9 +1831,8 @@ function loadConfigStoreToInputs(m) {
     d.leave
   ));
 
-  // 2. Nếu tháng m chưa có cấu hình HOẶC chưa từng có chấm công thực tế (chưa đi làm):
-  // Tự động nhận dữ liệu lương của tháng trước đó (m - 1 hoặc Tháng 12 năm trước)
-  if (!monthlyConfigStore[m] || !hasWorked) {
+  // 2. Chỉ kế thừa lương khi tháng m HOÀN TOÀN CHƯA CÓ cấu hình lương (hoặc baseSalary <= 0)
+  if (!monthlyConfigStore[m] || !monthlyConfigStore[m].baseSalary || monthlyConfigStore[m].baseSalary <= 0) {
     let inherited = null;
     if (m > 1) {
       for (let prevM = m - 1; prevM >= 1; prevM--) {
@@ -4878,8 +4894,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   // 1. Nạp từ CSDL / localStorage tách biệt theo nhân viên hiện tại (currentEmpId)
   await loadAllMonthsFromBackendOrStorage(currentYear, currentEmpId);
   await loadFromBackendOrStorage(currentMonth, currentYear, currentEmpId);
-  // Tự động dọn dẹp các cache rác cũ và đảm bảo lấy cấu hình lương mới nhất cho các tháng chưa đi làm
-  await cleanupOldDataAndSyncLatest(true);
   loadConfigStoreToInputs(currentMonth);
   renderUnifiedTable();
 
